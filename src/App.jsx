@@ -284,18 +284,20 @@ function splitHtmlAtChar(html, n) {
  */
 function measureColWidth(fontSize) {
   try {
+    // 30文字を縦書き1カラムに収める高さを与えて幅を測定（単文字測定より正確）
+    const n = 30;
     const el = document.createElement('div');
     el.setAttribute('style',
-      'position:fixed;visibility:hidden;pointer-events:none;white-space:nowrap;top:0;left:0;' +
+      `position:fixed;visibility:hidden;pointer-events:none;top:0;left:0;display:inline-block;` +
       `writing-mode:vertical-rl;font-size:${fontSize}px;line-height:2.0;letter-spacing:0.08em;` +
-      "font-family:'Noto Serif JP','Yu Mincho',serif;"
+      `font-family:'Noto Serif JP','Yu Mincho',serif;` +
+      `height:${fontSize * (n + 2)}px;white-space:normal;`
     );
-    el.textContent = 'あ';
+    el.textContent = 'あ'.repeat(n);
     document.body.appendChild(el);
     const w = el.getBoundingClientRect().width;
     document.body.removeChild(el);
-    // fontSize〜fontSize*3 の範囲を有効値とし、範囲外はフォールバック
-    return (w >= fontSize && w <= fontSize * 3) ? w : fontSize * 2.0;
+    return (w >= fontSize * 0.9 && w <= fontSize * 3.5) ? w : fontSize * 2.0;
   } catch { return fontSize * 2.0; }
 }
 
@@ -304,8 +306,8 @@ function paginateText(html, w, h, fontSize, colW) {
   const usableW = w - 80;        // right:24px + left:56px（左端クリップ防止）
   const effectiveColW = (colW && colW >= fontSize) ? colW : fontSize * 2.0;
   const charsPerCol = Math.max(1, Math.floor(usableH / fontSize));
-  // -1 で必ず1カラム分の余裕を確保（測定誤差・フォントメトリクス差を吸収）
-  const colsPerPage = Math.max(1, Math.floor(usableW / effectiveColW) - 1);
+  // -2 で2カラム分の余裕を確保（Safari iOS のフォントメトリクス差・測定誤差を吸収）
+  const colsPerPage = Math.max(1, Math.floor(usableW / effectiveColW) - 2);
   const cpp         = Math.max(1, charsPerCol * colsPerPage);
   const pages = [];
   let pos = 0;
@@ -495,24 +497,26 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
           opacity:overlay?0.16:1,transition:"opacity 0.22s"}}
       >
         {[
-          {p:Math.max(0,page-1),          offset:` 100% + ${dragPageX}px`},
-          {p:page,                         offset:`${dragPageX}px`},
-          {p:Math.min(pages.length-1,page+1), offset:`-100% + ${dragPageX}px`},
+          {p: page > 0 ? page - 1 : null,                        offset:` 100% + ${dragPageX}px`},
+          {p: page,                                               offset:`${dragPageX}px`},
+          {p: page < pages.length - 1 ? page + 1 : null,         offset:`-100% + ${dragPageX}px`},
         ].map(({p,offset},i)=>(
           <div key={i} style={{
             position:"absolute",inset:0,overflow:"hidden",
             transform:`translateX(calc(${offset}))`,
             transition:pageAnimating?"transform 0.25s ease":"none",
           }}>
-            {/* left:56/right:24 のクリップコンテナ：overflow:hidden がテキスト領域の境界でクリップ */}
-            <div style={{position:"absolute",top:0,bottom:0,left:56,right:24,overflow:"hidden"}}>
-              <div style={{
-                writingMode:"vertical-rl",textOrientation:"mixed",
-                height:"100%",width:"100%",overflow:"hidden",
-                fontSize,lineHeight:2.0,letterSpacing:"0.08em",color:"#140800",
-                whiteSpace:"pre-wrap",padding:"64px 0 40px 0",
-              }} dangerouslySetInnerHTML={{__html:pages[p]}}/>
-            </div>
+            {p !== null && (
+              /* left:56/right:24 のクリップコンテナ：overflow:hidden がテキスト領域の境界でクリップ */
+              <div style={{position:"absolute",top:0,bottom:0,left:56,right:24,overflow:"hidden"}}>
+                <div style={{
+                  writingMode:"vertical-rl",textOrientation:"mixed",
+                  height:"100%",width:"100%",overflow:"hidden",
+                  fontSize,lineHeight:2.0,letterSpacing:"0.08em",color:"#140800",
+                  whiteSpace:"pre-wrap",padding:"64px 0 40px 0",
+                }} dangerouslySetInnerHTML={{__html:pages[p]}}/>
+              </div>
+            )}
           </div>
         ))}
       </div>
