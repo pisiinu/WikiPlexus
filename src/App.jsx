@@ -280,7 +280,7 @@ function splitHtmlAtChar(html, n) {
 /* ─── ページ分割 ─── */
 function paginateText(html, w, h, fontSize) {
   const usableH = h - 80;   // padding 40px × 上下
-  const usableW = w - 48;   // padding 24px × 左右
+  const usableW = w - 64;   // right:24px + left:40px（左端クリップ防止バッファ）
   const lineH   = fontSize * 2.25;  // 縦方向：1文字が占める高さ
   const colW    = fontSize;          // 横方向：1文字が占める幅（CJKは正方形）
   const charsPerCol = Math.max(1, Math.floor(usableH / lineH));
@@ -375,7 +375,21 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
   const prevP = ()=>setPage(p=>Math.max(p-1,0));
   const FS = [13,16,19,22];
 
-  // タッチ判定（ページフリップアニメ＋dead zone）
+  // ページ送りアニメ（スワイプ・タップ共通）
+  function goNext(){
+    if(page>=totalPages-1) return;
+    const w=containerRef.current?.clientWidth??window.innerWidth;
+    setPageAnimating(true); setDragPageX(w);
+    setTimeout(()=>{ nextP(); setPageAnimating(false); setDragPageX(0); }, 260);
+  }
+  function goPrev(){
+    if(page<=0) return;
+    const w=containerRef.current?.clientWidth??window.innerWidth;
+    setPageAnimating(true); setDragPageX(-w);
+    setTimeout(()=>{ prevP(); setPageAnimating(false); setDragPageX(0); }, 260);
+  }
+
+  // タッチ判定（ページフリップアニメ＋dead zone＋edge tap）
   function onTS(e){
     const w=containerRef.current?containerRef.current.clientWidth:window.innerWidth;
     touchStart.current={x:e.touches[0].clientX,y:e.touches[0].clientY,locked:null,w};
@@ -388,25 +402,22 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     if(s.locked==='h') setDragPageX(dx);
   }
   function onTE(e){
+    e.preventDefault(); // touchend後のclick合成イベントを抑止
     const s=touchStart.current; touchStart.current=null; if(!s) return;
     const dx=e.changedTouches[0].clientX-s.x;
     const dy=e.changedTouches[0].clientY-s.y;
     if(s.locked==='h'&&Math.abs(dx)>40){
-      // 右スワイプ=次ページ、左スワイプ=前ページ（アニメ付き）
-      if(dx>0&&page<totalPages-1){
-        setPageAnimating(true); setDragPageX(s.w);
-        setTimeout(()=>{ nextP(); setPageAnimating(false); setDragPageX(0); }, 260);
-      } else if(dx<0&&page>0){
-        setPageAnimating(true); setDragPageX(-s.w);
-        setTimeout(()=>{ prevP(); setPageAnimating(false); setDragPageX(0); }, 260);
-      } else {
-        setPageAnimating(true); setDragPageX(0); setTimeout(()=>setPageAnimating(false),260);
-      }
+      // 右スワイプ=次ページ、左スワイプ=前ページ
+      if(dx>0) goNext(); else goPrev();
     } else if(Math.abs(dx)<12&&Math.abs(dy)<12){
-      // タップ（上下dead zone内はメニュー非表示）
-      const y=s.y, h=window.innerHeight;
-      if(y>=64&&y<=h-56){ setOverlay(v=>!v); setMiniSeek(false); }
+      // タップ処理（onTEで完結、onClickは発火しない）
       setDragPageX(0);
+      const y=s.y, h=window.innerHeight;
+      if(y<64||y>h-56) return; // 上下dead zone
+      const x=s.x, vw=window.innerWidth;
+      if(x<60){ goPrev(); return; }       // 左端: 前ページ
+      if(x>vw-60){ goNext(); return; }    // 右端: 次ページ
+      setOverlay(v=>!v); setMiniSeek(false);
     } else {
       // スナップバック
       setPageAnimating(true); setDragPageX(0); setTimeout(()=>setPageAnimating(false),260);
@@ -441,9 +452,13 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
         ref={containerRef}
         onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}
         onClick={e=>{
+          // タッチ端末はonTEで処理済み。マウス操作のみここに到達
           const y=e.clientY, h=window.innerHeight;
           if(y<64||y>h-56) return;
-          setOverlay(v=>!v);setMiniSeek(false);
+          const x=e.clientX, vw=window.innerWidth;
+          if(x<60){ goPrev(); return; }
+          if(x>vw-60){ goNext(); return; }
+          setOverlay(v=>!v); setMiniSeek(false);
         }}
         style={{position:"absolute",inset:0,overflow:"hidden",cursor:"pointer",
           opacity:overlay?0.16:1,transition:"opacity 0.22s"}}
@@ -462,7 +477,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
               writingMode:"vertical-rl",textOrientation:"mixed",
               height:"100%",width:"100%",overflow:"hidden",
               fontSize,lineHeight:2.25,letterSpacing:"0.08em",color:"#140800",
-              whiteSpace:"pre-wrap",padding:"64px 24px 40px",
+              whiteSpace:"pre-wrap",padding:"64px 24px 40px 40px",
             }} dangerouslySetInnerHTML={{__html:pages[p]}}/>
           </div>
         ))}
