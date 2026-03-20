@@ -299,6 +299,19 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
   const [amazonModal,setAmazonModal] = useState(false);
 
   const containerRef = useRef(null);
+  const touchStart   = useRef(null);
+  const didSwipe     = useRef(false);
+
+  // フォントサイズ・テキスト変更時にページを再計算
+  useEffect(()=>{
+    const el = containerRef.current;
+    const w  = el ? el.clientWidth  : window.innerWidth;
+    const h  = el ? el.clientHeight : window.innerHeight;
+    const np = paginateText(text, w, h, fontSize);
+    setPages(np);
+    setPage(p => Math.min(p, Math.max(0, np.length - 1)));
+  }, [text, fontSize]);
+
   if (textLoading) return (
     <div style={{position:"fixed",inset:0,background:"linear-gradient(150deg,#f7f2e8 0%,#ece6d4 100%)",
       display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
@@ -324,19 +337,6 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
       <button onClick={onClose} style={{marginTop:16,background:"#2a1800",color:"#f7f2e8",border:"none",padding:"8px 24px",cursor:"pointer",fontSize:11,letterSpacing:"0.1em"}}>戻る</button>
     </div>
   );
-
-  const touchStart   = useRef(null);
-  const didSwipe     = useRef(false);
-
-  // フォントサイズ・テキスト変更時にページを再計算
-  useEffect(()=>{
-    const el = containerRef.current;
-    const w  = el ? el.clientWidth  : window.innerWidth;
-    const h  = el ? el.clientHeight : window.innerHeight;
-    const np = paginateText(text, w, h, fontSize);
-    setPages(np);
-    setPage(p => Math.min(p, Math.max(0, np.length - 1)));
-  }, [text, fontSize]);
 
   const totalPages = pages.length;
   const nextP = ()=>setPage(p=>Math.min(p+1,totalPages-1));
