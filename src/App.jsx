@@ -520,6 +520,18 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
 }
 
 
+/* ─── 読みたいボタン ─── */
+function WantBtn({ id, wantList, toggle }) {
+  const on = wantList.includes(id);
+  return (
+    <button onClick={e=>{e.stopPropagation();toggle(id);}}
+      style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",
+        fontSize:16,lineHeight:1,color:on?"#8a5a20":"rgba(130,100,60,0.25)",transition:"color 0.15s"}}>
+      {on?"★":"☆"}
+    </button>
+  );
+}
+
 /* ─── データ ─── */
 const POPULAR = [
   {id:"k773",   title:"こころ",         author:"夏目漱石",   url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/001471/files/55540_55653.html"},
@@ -574,7 +586,7 @@ export default function App() {
   }
 
   if(reading) return (
-    <PageReader book={reading} text={DEMO_TEXT}
+    <PageReader book={reading}
       onClose={()=>setReading(null)}
       fontSize={fontSize} setFontSize={setFontSize}/>
   );
