@@ -279,10 +279,10 @@ function splitHtmlAtChar(html, n) {
 
 /* ─── ページ分割 ─── */
 function paginateText(html, w, h, fontSize) {
-  const usableH = h - 80;   // padding 40px × 上下
-  const usableW = w - 64;   // right:24px + left:40px（左端クリップ防止バッファ）
+  const usableH = h - 80;        // padding 40px × 上下
+  const usableW = w - 80;        // right:24px + left:56px（左端クリップ防止）
   const lineH   = fontSize * 2.25;  // 縦方向：1文字が占める高さ
-  const colW    = fontSize;          // 横方向：1文字が占める幅（CJKは正方形）
+  const colW    = fontSize + 0.5;   // 0.5px余裕を持たせ余りゼロを防ぐ
   const charsPerCol = Math.max(1, Math.floor(usableH / lineH));
   const colsPerPage = Math.max(1, Math.floor(usableW / colW));
   const cpp         = Math.max(1, charsPerCol * colsPerPage);
@@ -415,8 +415,8 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
       const y=s.y, h=window.innerHeight;
       if(y<64||y>h-56) return; // 上下dead zone
       const x=s.x, vw=window.innerWidth;
-      if(x<60){ goPrev(); return; }       // 左端: 前ページ
-      if(x>vw-60){ goNext(); return; }    // 右端: 次ページ
+      if(x<60){ goNext(); return; }       // 左端: 次ページ（縦書き右→左）
+      if(x>vw-60){ goPrev(); return; }    // 右端: 前ページ
       setOverlay(v=>!v); setMiniSeek(false);
     } else {
       // スナップバック
@@ -456,8 +456,8 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
           const y=e.clientY, h=window.innerHeight;
           if(y<64||y>h-56) return;
           const x=e.clientX, vw=window.innerWidth;
-          if(x<60){ goPrev(); return; }
-          if(x>vw-60){ goNext(); return; }
+          if(x<60){ goNext(); return; }    // 左端: 次ページ
+          if(x>vw-60){ goPrev(); return; } // 右端: 前ページ
           setOverlay(v=>!v); setMiniSeek(false);
         }}
         style={{position:"absolute",inset:0,overflow:"hidden",cursor:"pointer",
@@ -477,7 +477,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
               writingMode:"vertical-rl",textOrientation:"mixed",
               height:"100%",width:"100%",overflow:"hidden",
               fontSize,lineHeight:2.25,letterSpacing:"0.08em",color:"#140800",
-              whiteSpace:"pre-wrap",padding:"64px 24px 40px 40px",
+              whiteSpace:"pre-wrap",padding:"64px 24px 40px 56px",
             }} dangerouslySetInnerHTML={{__html:pages[p]}}/>
           </div>
         ))}
