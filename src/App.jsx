@@ -1,4 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useBookText } from "./hooks/useBookText.js";
+import { useCatalog, searchCatalog } from "./hooks/useCatalog.js";
 
 const MAX_SHELF = 9;
 const MAX_BM    = 3;
@@ -284,8 +286,10 @@ function paginateText(html, w, h, fontSize) {
 }
 
 /* ─── リーダー ─── */
-function PageReader({ book, text, onClose, fontSize, setFontSize }) {
-  const initPages = ()=> paginateText(text, window.innerWidth, window.innerHeight, fontSize);
+function PageReader({ book, onClose, fontSize, setFontSize }) {
+  const { text, loading: textLoading, error: textError } = useBookText(book);
+  // ローディング・エラー時はここで早期 return できないため hooks は全て上で呼ぶ
+  const initPages = ()=> paginateText(text || "", window.innerWidth, window.innerHeight, fontSize);
   const [pages,setPages]           = useState(initPages);
   const [page,setPage]             = useState(0);
   const [bookmarks,setBookmarks]   = useState([]);
@@ -295,6 +299,32 @@ function PageReader({ book, text, onClose, fontSize, setFontSize }) {
   const [amazonModal,setAmazonModal] = useState(false);
 
   const containerRef = useRef(null);
+  if (textLoading) return (
+    <div style={{position:"fixed",inset:0,background:"linear-gradient(150deg,#f7f2e8 0%,#ece6d4 100%)",
+      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+      fontFamily:"'Noto Serif JP','Yu Mincho',serif",gap:20}}>
+      <div style={{fontSize:13,color:"#5a3a18",letterSpacing:"0.2em"}}>{book.title}</div>
+      <div style={{fontSize:10,color:"#9a7050",letterSpacing:"0.1em"}}>{book.author}</div>
+      <div style={{marginTop:8,width:36,height:36,border:"2px solid #c0a060",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.9s linear infinite"}}/>
+      <div style={{fontSize:9,color:"#b09070",letterSpacing:"0.15em",marginTop:4}}>読み込み中…</div>
+      <button onClick={onClose} style={{marginTop:20,background:"none",border:"1px solid #c0a880",color:"#7a5a30",padding:"6px 18px",cursor:"pointer",fontSize:10,letterSpacing:"0.1em"}}>キャンセル</button>
+      <style>{"@keyframes spin{to{transform:rotate(360deg)}}"}</style>
+    </div>
+  );
+
+  if (textError) return (
+    <div style={{position:"fixed",inset:0,background:"linear-gradient(150deg,#f7f2e8 0%,#ece6d4 100%)",
+      display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+      fontFamily:"'Noto Serif JP','Yu Mincho',serif",gap:14,padding:24,textAlign:"center"}}>
+      <div style={{fontSize:13,color:"#5a3a18",letterSpacing:"0.1em"}}>{book.title}</div>
+      <div style={{fontSize:11,color:"#c05030",letterSpacing:"0.08em",marginTop:4}}>
+        {textError === "network" ? "通信エラー：テキストを取得できませんでした" : "テキストが見つかりません"}
+      </div>
+      <div style={{fontSize:9,color:"#9a7050",marginTop:2}}>オンライン接続を確認してください</div>
+      <button onClick={onClose} style={{marginTop:16,background:"#2a1800",color:"#f7f2e8",border:"none",padding:"8px 24px",cursor:"pointer",fontSize:11,letterSpacing:"0.1em"}}>戻る</button>
+    </div>
+  );
+
   const touchStart   = useRef(null);
   const didSwipe     = useRef(false);
 
@@ -489,69 +519,25 @@ function PageReader({ book, text, onClose, fontSize, setFontSize }) {
   );
 }
 
+
 /* ─── データ ─── */
 const POPULAR = [
-  {id:1,title:"こころ",author:"夏目漱石"},
-  {id:2,title:"坊っちゃん",author:"夏目漱石"},
-  {id:3,title:"羅生門",author:"芥川龍之介"},
-  {id:4,title:"走れメロス",author:"太宰治"},
-  {id:5,title:"銀河鉄道の夜",author:"宮沢賢治"},
-  {id:6,title:"山月記",author:"中島敦"},
-  {id:7,title:"人間失格",author:"太宰治"},
-  {id:8,title:"伊豆の踊子",author:"川端康成"},
-  {id:9,title:"雪国",author:"川端康成"},
-  {id:10,title:"舞姫",author:"森鴎外"},
-  {id:11,title:"たけくらべ",author:"樋口一葉"},
-  {id:12,title:"檸檬",author:"梶井基次郎"},
+  {id:"k773",   title:"こころ",         author:"夏目漱石",   url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/001471/files/55540_55653.html"},
+  {id:"k752",   title:"坊っちゃん",     author:"夏目漱石",   url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000148/files/752_14964.html"},
+  {id:"k128",   title:"羅生門",         author:"芥川龍之介", url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000879/files/128_15261.html"},
+  {id:"k1567",  title:"走れメロス",     author:"太宰治",     url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000035/files/1567_14913.html"},
+  {id:"k46322", title:"銀河鉄道の夜",   author:"宮沢賢治",   url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000081/files/46322_24347.html"},
+  {id:"k623",   title:"山月記",         author:"中島敦",     url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000119/files/623_18353.html"},
+  {id:"k301",   title:"人間失格",       author:"太宰治",     url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000035/files/301_14912.html"},
+  {id:"k538",   title:"舞姫",           author:"森鴎外",     url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000102/files/538_20593.html"},
+  {id:"k56041", title:"たけくらべ",     author:"樋口一葉",   url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000064/files/56041_54765.html"},
+  {id:"k46349", title:"檸檬",           author:"梶井基次郎", url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000074/files/46349_23843.html"},
+  {id:"k789",   title:"吾輩は猫である", author:"夏目漱石",   url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000148/files/789_14547.html"},
+  {id:"k92",    title:"蜘蛛の糸",       author:"芥川龍之介", url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000879/files/92_14545.html"},
+  {id:"k179",   title:"藪の中",         author:"芥川龍之介", url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000879/files/179_15255.html"},
+  {id:"k691",   title:"高瀬舟",         author:"森鴎外",     url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000129/files/691_15352.html"},
 ];
-const SEARCH_POOL = [
-  ...POPULAR,
-  {id:13,title:"藪の中",author:"芥川龍之介"},
-  {id:14,title:"高瀬舟",author:"森鴎外"},
-  {id:15,title:"風立ちぬ",author:"堀辰雄"},
-  {id:16,title:"蜘蛛の糸",author:"芥川龍之介"},
-  {id:17,title:"城の崎にて",author:"志賀直哉"},
-];
-const SANGETSUKI_TEXT = `<ruby>隴西<rt>ろうさい</rt></ruby>の<ruby>李徴<rt>りちょう</rt></ruby>は博学<ruby>才穎<rt>さいえい</rt></ruby>、天宝の末年、若くして名を<ruby>虎榜<rt>こぼう</rt></ruby>に連ね、ついで<ruby>江南尉<rt>こうなんい</rt></ruby>に補せられたが、性、<ruby>狷介<rt>けんかい</rt></ruby>、<ruby>自<rt>みずか</rt></ruby>ら<ruby>恃<rt>たの</rt></ruby>むところ<ruby>頗<rt>すこぶ</rt></ruby>る厚く、<ruby>賤吏<rt>せんり</rt></ruby>に甘んずるを<ruby>潔<rt>いさぎよ</rt></ruby>しとしなかった。いくばくもなく官を退いた後は、<ruby>故山<rt>こざん</rt></ruby>、<ruby>虢略<rt>かくりゃく</rt></ruby>に<ruby>帰臥<rt>きが</rt></ruby>し、人と<ruby>交<rt>まじわり</rt></ruby>を絶って、ひたすら詩作に<ruby>耽<rt>ふけ</rt></ruby>った。下吏となって長く<ruby>膝<rt>ひざ</rt></ruby>を俗悪な大官の前に屈するよりは、詩家としての名を死後百年に<ruby>遺<rt>のこ</rt></ruby>そうとしたのである。しかし、文名は容易に揚らず、生活は日を<ruby>逐<rt>お</rt></ruby>うて苦しくなる。李徴は<ruby>漸<rt>ようや</rt></ruby>く<ruby>焦躁<rt>しょうそう</rt></ruby>に駆られて来た。この<ruby>頃<rt>ころ</rt></ruby>からその<ruby>容貌<rt>ようぼう</rt></ruby>も<ruby>峭刻<rt>しょうこく</rt></ruby>となり、肉落ち骨<ruby>秀<rt>ひい</rt></ruby>で、眼光のみ<ruby>徒<rt>いたず</rt></ruby>らに<ruby>炯々<rt>けいけい</rt></ruby>として、<ruby>曾<rt>かつ</rt></ruby>て進士に<ruby>登第<rt>とうだい</rt></ruby>した頃の<ruby>豊頬<rt>ほうきょう</rt></ruby>の美少年の<ruby>俤<rt>おもかげ</rt></ruby>は、<ruby>何処<rt>どこ</rt></ruby>に求めようもない。数年の後、貧窮に<ruby>堪<rt>た</rt></ruby>えず、妻子の衣食のために<ruby>遂<rt>つい</rt></ruby>に節を屈して、再び東へ赴き、一地方官吏の職を奉ずることになった。一方、これは、<ruby>己<rt>おのれ</rt></ruby>の詩業に半ば絶望したためでもある。曾ての同輩は既に<ruby>遥<rt>はる</rt></ruby>か高位に進み、彼が昔、鈍物として<ruby>歯牙<rt>しが</rt></ruby>にもかけなかったその連中の下命を拝さねばならぬことが、往年の<ruby>儁才<rt>しゅんさい</rt></ruby>李徴の自尊心を<ruby>如何<rt>いか</rt></ruby>に<ruby>傷<rt>きずつ</rt></ruby>けたかは、想像に<ruby>難<rt>かた</rt></ruby>くない。彼は<ruby>怏々<rt>おうおう</rt></ruby>として楽しまず、<ruby>狂悖<rt>きょうはい</rt></ruby>の性は<ruby>愈々<rt>いよいよ</rt></ruby>抑え<ruby>難<rt>がた</rt></ruby>くなった。一年の後、公用で旅に出、<ruby>汝水<rt>じょすい</rt></ruby>のほとりに宿った時、遂に発狂した。<ruby>或<rt>ある</rt></ruby>夜半、急に顔色を変えて寝床から起上ると、何か訳の分らぬことを叫びつつそのまま下にとび下りて、<ruby>闇<rt>やみ</rt></ruby>の中へ<ruby>駈出<rt>かけだ</rt></ruby>した。彼は二度と<ruby>戻<rt>もど</rt></ruby>って来なかった。附近の山野を捜索しても、何の手掛りもない。その後李徴がどうなったかを知る者は、<ruby>誰<rt>だれ</rt></ruby>もなかった。
-翌年、<ruby>監察御史<rt>かんさつぎょし</rt></ruby>、<ruby>陳郡<rt>ちんぐん</rt></ruby>の<ruby>袁傪<rt>えんさん</rt></ruby>という者、勅命を奉じて<ruby>嶺南<rt>れいなん</rt></ruby>に<ruby>使<rt>つかい</rt></ruby>し、<ruby>途<rt>みち</rt></ruby>に<ruby>商於<rt>しょうお</rt></ruby>の地に宿った。次の朝<ruby>未<rt>ま</rt></ruby>だ暗い<ruby>中<rt>うち</rt></ruby>に出発しようとしたところ、駅吏が言うことに、これから先の道に<ruby>人喰虎<rt>ひとくいどら</rt></ruby>が出る<ruby>故<rt>ゆえ</rt></ruby>、旅人は白昼でなければ、通れない。今はまだ朝が早いから、今少し待たれたが<ruby>宜<rt>よろ</rt></ruby>しいでしょうと。袁傪は、しかし、<ruby>供廻<rt>ともまわ</rt></ruby>りの多勢なのを恃み、駅吏の言葉を<ruby>斥<rt>しりぞ</rt></ruby>けて、出発した。残月の光をたよりに林中の草地を通って行った時、果して一匹の<ruby>猛虎<rt>もうこ</rt></ruby>が<ruby>叢<rt>くさむら</rt></ruby>の中から躍り出た。虎は、あわや袁傪に躍りかかるかと見えたが、<ruby>忽<rt>たちま</rt></ruby>ち身を<ruby>飜<rt>ひるがえ</rt></ruby>して、元の叢に隠れた。叢の中から人間の声で「あぶないところだった」と繰返し<ruby>呟<rt>つぶや</rt></ruby>くのが聞えた。その声に袁傪は聞き<ruby>憶<rt>おぼ</rt></ruby>えがあった。<ruby>驚懼<rt>きょうく</rt></ruby>の中にも、彼は<ruby>咄嗟<rt>とっさ</rt></ruby>に思いあたって、叫んだ。「その声は、我が友、李徴子ではないか？」袁傪は李徴と同年に進士の第に登り、友人の少かった李徴にとっては、最も親しい友であった。温和な袁傪の性格が、<ruby>峻峭<rt>しゅんしょう</rt></ruby>な李徴の性情と衝突しなかったためであろう。
-叢の中からは、<ruby>暫<rt>しばら</rt></ruby>く返辞が無かった。しのび泣きかと思われる<ruby>微<rt>かす</rt></ruby>かな声が時々<ruby>洩<rt>も</rt></ruby>れるばかりである。ややあって、低い声が答えた。「如何にも自分は隴西の李徴である」と。
-袁傪は恐怖を忘れ、馬から下りて叢に近づき、<ruby>懐<rt>なつ</rt></ruby>かしげに<ruby>久闊<rt>きゅうかつ</rt></ruby>を叙した。そして、<ruby>何故<rt>なぜ</rt></ruby>叢から出て来ないのかと問うた。李徴の声が答えて言う。自分は今や異類の身となっている。どうして、おめおめと<ruby>故人<rt>とも</rt></ruby>の前にあさましい姿をさらせようか。かつ又、自分が姿を現せば、必ず君に<ruby>畏怖嫌厭<rt>いふけんえん</rt></ruby>の情を起させるに決っているからだ。しかし、今、図らずも故人に<ruby>遇<rt>あ</rt></ruby>うことを得て、<ruby>愧赧<rt>きたん</rt></ruby>の念をも忘れる程に懐かしい。どうか、ほんの暫くでいいから、我が醜悪な今の外形を<ruby>厭<rt>いと</rt></ruby>わず、曾て君の友李徴であったこの自分と話を交してくれないだろうか。
-後で考えれば不思議だったが、その時、袁傪は、この超自然の怪異を、実に素直に<ruby>受容<rt>うけい</rt></ruby>れて、少しも怪もうとしなかった。彼は部下に命じて行列の進行を<ruby>停<rt>と</rt></ruby>め、自分は叢の<ruby>傍<rt>かたわら</rt></ruby>に立って、見えざる声と対談した。都の<ruby>噂<rt>うわさ</rt></ruby>、旧友の消息、袁傪が現在の地位、それに対する李徴の祝辞。青年時代に親しかった者同志の、あの隔てのない語調で、それ<ruby>等<rt>ら</rt></ruby>が語られた後、袁傪は、李徴がどうして今の身となるに至ったかを<ruby>訊<rt>たず</rt></ruby>ねた。草中の声は次のように語った。
-今から一年程前、自分が旅に出て汝水のほとりに泊った夜のこと、一睡してから、ふと<ruby>眼<rt>め</rt></ruby>を覚ますと、戸外で誰かが我が名を呼んでいる。声に応じて外へ出て見ると、声は闇の中から<ruby>頻<rt>しき</rt></ruby>りに自分を招く。覚えず、自分は声を追うて走り出した。無我夢中で駈けて行く中に、<ruby>何時<rt>いつ</rt></ruby>しか途は山林に入り、しかも、知らぬ間に自分は左右の手で地を<ruby>攫<rt>つか</rt></ruby>んで走っていた。何か<ruby>身体<rt>からだ</rt></ruby>中に力が<ruby>充<rt>み</rt></ruby>ち満ちたような感じで、軽々と岩石を跳び越えて行った。気が付くと、手先や<ruby>肱<rt>ひじ</rt></ruby>のあたりに毛を生じているらしい。少し明るくなってから、谷川に臨んで姿を映して見ると、既に虎となっていた。自分は初め眼を信じなかった。次に、これは夢に違いないと考えた。夢の中で、これは夢だぞと知っているような夢を、自分はそれまでに見たことがあったから。どうしても夢でないと悟らねばならなかった時、自分は<ruby>茫然<rt>ぼうぜん</rt></ruby>とした。そうして<ruby>懼<rt>おそ</rt></ruby>れた。全く、どんな事でも起り得るのだと思うて、深く懼れた。しかし、何故こんな事になったのだろう。分らぬ。全く何事も我々には<ruby>判<rt>わか</rt></ruby>らぬ。理由も分らずに押付けられたものを大人しく受取って、理由も分らずに生きて行くのが、我々生きもののさだめだ。自分は<ruby>直<rt>す</rt></ruby>ぐに死を<ruby>想<rt>おも</rt></ruby>うた。しかし、その時、眼の前を一匹の<ruby>兎<rt>うさぎ</rt></ruby>が駈け過ぎるのを見た途端に、自分の中の人間は忽ち姿を消した。再び自分の中の人間が目を覚ました時、自分の口は兎の血に<ruby>塗<rt>まみ</rt></ruby>れ、あたりには兎の毛が散らばっていた。これが虎としての最初の経験であった。それ以来今までにどんな所行をし続けて来たか、それは到底語るに忍びない。ただ、一日の中に必ず数時間は、人間の心が<ruby>還<rt>かえ</rt></ruby>って来る。そういう時には、曾ての日と同じく、人語も<ruby>操<rt>あやつ</rt></ruby>れれば、複雑な思考にも堪え得るし、<ruby>経書<rt>けいしょ</rt></ruby>の章句を<ruby>誦<rt>そら</rt></ruby>んずることも出来る。その人間の心で、虎としての<ruby>己<rt>おのれ</rt></ruby>の<ruby>残虐<rt>ざんぎゃく</rt></ruby>な<ruby>行<rt>おこない</rt></ruby>のあとを見、己の運命をふりかえる時が、最も情なく、恐しく、<ruby>憤<rt>いきどお</rt></ruby>ろしい。しかし、その、人間にかえる数時間も、日を経るに従って次第に短くなって行く。今までは、どうして虎などになったかと怪しんでいたのに、この間ひょいと気が付いて見たら、<ruby>己<rt>おれ</rt></ruby>はどうして以前、人間だったのかと考えていた。これは恐しいことだ。今少し<ruby>経<rt>た</rt></ruby>てば、<ruby>己<rt>おれ</rt></ruby>の中の人間の心は、獣としての習慣の中にすっかり<ruby>埋<rt>うも</rt></ruby>れて消えて<ruby>了<rt>しま</rt></ruby>うだろう。ちょうど、古い宮殿の<ruby>礎<rt>いしずえ</rt></ruby>が次第に土砂に埋没するように。そうすれば、しまいに己は自分の過去を忘れ果て、一匹の虎として狂い廻り、今日のように途で君と出会っても<ruby>故人<rt>とも</rt></ruby>と認めることなく、君を裂き<ruby>喰<rt>くろ</rt></ruby>うて何の悔も感じないだろう。一体、獣でも人間でも、もとは何か<ruby>他<rt>ほか</rt></ruby>のものだったんだろう。初めはそれを憶えているが、次第に忘れて了い、初めから今の形のものだったと思い込んでいるのではないか？　いや、そんな事はどうでもいい。己の中の人間の心がすっかり消えて了えば、恐らく、その方が、己はしあわせになれるだろう。だのに、己の中の人間は、その事を、この上なく恐しく感じているのだ。ああ、全く、どんなに、恐しく、<ruby>哀<rt>かな</rt></ruby>しく、切なく思っているだろう！　己が人間だった記憶のなくなることを。この気持は誰にも分らない。誰にも分らない。己と同じ身の上に成った者でなければ。ところで、そうだ。己がすっかり人間でなくなって了う前に、一つ頼んで置きたいことがある。
-袁傪はじめ一行は、息をのんで、<ruby>叢中<rt>そうちゅう</rt></ruby>の声の語る不思議に聞入っていた。声は続けて言う。
-他でもない。自分は元来詩人として名を成す積りでいた。しかも、業<ruby>未<rt>いま</rt></ruby>だ成らざるに、この運命に立至った。曾て作るところの詩数百<ruby>篇<rt>ぺん</rt></ruby>、<ruby>固<rt>もと</rt></ruby>より、まだ世に行われておらぬ。遺稿の所在も<ruby>最早<rt>もはや</rt></ruby>判らなくなっていよう。ところで、その中、今も<ruby>尚<rt>なお</rt></ruby><ruby>記誦<rt>きしょう</rt></ruby>せるものが数十ある。これを我が<ruby>為<rt>ため</rt></ruby>に伝録して<ruby>戴<rt>いただ</rt></ruby>きたいのだ。何も、これに<ruby>仍<rt>よ</rt></ruby>って一人前の詩人<ruby>面<rt>づら</rt></ruby>をしたいのではない。作の巧拙は知らず、とにかく、産を破り心を狂わせてまで自分が<ruby>生涯<rt>しょうがい</rt></ruby>それに執着したところのものを、一部なりとも後代に伝えないでは、死んでも死に切れないのだ。
-袁傪は部下に命じ、筆を執って叢中の声に<ruby>随<rt>したが</rt></ruby>って書きとらせた。李徴の声は叢の中から朗々と響いた。長短<ruby>凡<rt>およ</rt></ruby>そ三十篇、格調高雅、意趣卓逸、一読して作者の才の非凡を思わせるものばかりである。しかし、袁傪は感嘆しながらも<ruby>漠然<rt>ばくぜん</rt></ruby>と次のように感じていた。<ruby>成程<rt>なるほど</rt></ruby>、作者の素質が第一流に属するものであることは疑いない。しかし、このままでは、第一流の作品となるのには、<ruby>何処<rt>どこ</rt></ruby>か（非常に微妙な点に<ruby>於<rt>おい</rt></ruby>て）欠けるところがあるのではないか、と。
-旧詩を吐き終った李徴の声は、突然調子を変え、自らを<ruby>嘲<rt>あざけ</rt></ruby>るか<ruby>如<rt>ごと</rt></ruby>くに言った。
-<ruby>羞<rt>はずか</rt></ruby>しいことだが、今でも、こんなあさましい身と成り果てた今でも、<ruby>己<rt>おれ</rt></ruby>は、己の詩集が<ruby>長安<rt>ちょうあん</rt></ruby>風流人士の机の上に置かれている様を、夢に見ることがあるのだ。<ruby>岩窟<rt>がんくつ</rt></ruby>の中に横たわって見る夢にだよ。<ruby>嗤<rt>わら</rt></ruby>ってくれ。詩人に成りそこなって虎になった哀れな男を。（袁傪は昔の青年李徴の<ruby>自嘲癖<rt>じちょうへき</rt></ruby>を思出しながら、哀しく聞いていた。）そうだ。お笑い草ついでに、今の<ruby>懐<rt>おもい</rt></ruby>を即席の詩に述べて見ようか。この虎の中に、まだ、曾ての李徴が生きているしるしに。
-袁傪は又下吏に命じてこれを書きとらせた。その詩に言う。
-偶因狂疾成殊類　災患相仍不可逃
-今日爪牙誰敢敵　当時声跡共相高
-我為異物蓬茅下　君已乗軺気勢豪
-此夕渓山対明月　不成長嘯但成嘷
-時に、残月、光<ruby>冷<rt>ひや</rt></ruby>やかに、白露は地に<ruby>滋<rt>しげ</rt></ruby>く、樹間を渡る冷風は既に暁の近きを告げていた。人々は最早、事の奇異を忘れ、粛然として、この詩人の<ruby>薄倖<rt>はっこう</rt></ruby>を嘆じた。李徴の声は再び続ける。
-<ruby>何故<rt>なぜ</rt></ruby>こんな運命になったか判らぬと、先刻は言ったが、しかし、考えように<ruby>依<rt>よ</rt></ruby>れば、思い当ることが全然ないでもない。人間であった時、<ruby>己<rt>おれ</rt></ruby>は努めて人との<ruby>交<rt>まじわり</rt></ruby>を避けた。人々は己を<ruby>倨傲<rt>きょごう</rt></ruby>だ、尊大だといった。実は、それが<ruby>殆<rt>ほとん</rt></ruby>ど<ruby>羞恥心<rt>しゅうちしん</rt></ruby>に近いものであることを、人々は知らなかった。<ruby>勿論<rt>もちろん</rt></ruby>、曾ての<ruby>郷党<rt>きょうとう</rt></ruby>の鬼才といわれた自分に、自尊心が無かったとは<ruby>云<rt>い</rt></ruby>わない。しかし、それは<ruby>臆病<rt>おくびょう</rt></ruby>な自尊心とでもいうべきものであった。己は詩によって名を成そうと思いながら、進んで師に就いたり、求めて詩友と交って<ruby>切磋琢磨<rt>せっさたくま</rt></ruby>に努めたりすることをしなかった。かといって、又、己は俗物の間に<ruby>伍<rt>ご</rt></ruby>することも<ruby>潔<rt>いさぎよ</rt></ruby>しとしなかった。共に、我が臆病な自尊心と、尊大な羞恥心との<ruby>所為<rt>せい</rt></ruby>である。<ruby>己<rt>おのれ</rt></ruby>の<ruby>珠<rt>たま</rt></ruby>に<ruby>非<rt>あら</rt></ruby>ざることを<ruby>惧<rt>おそ</rt></ruby>れるが<ruby>故<rt>ゆえ</rt></ruby>に、<ruby>敢<rt>あえ</rt></ruby>て刻苦して<ruby>磨<rt>みが</rt></ruby>こうともせず、又、己の珠なるべきを半ば信ずるが故に、<ruby>碌々<rt>ろくろく</rt></ruby>として<ruby>瓦<rt>かわら</rt></ruby>に伍することも出来なかった。<ruby>己<rt>おれ</rt></ruby>は次第に世と離れ、人と遠ざかり、<ruby>憤悶<rt>ふんもん</rt></ruby>と<ruby>慙恚<rt>ざんい</rt></ruby>とによって<ruby>益々<rt>ますます</rt></ruby><ruby>己<rt>おのれ</rt></ruby>の内なる臆病な自尊心を飼いふとらせる結果になった。人間は誰でも猛獣使であり、その猛獣に当るのが、各人の性情だという。<ruby>己<rt>おれ</rt></ruby>の場合、この尊大な羞恥心が猛獣だった。虎だったのだ。これが己を損い、妻子を苦しめ、友人を傷つけ、果ては、己の外形をかくの如く、内心にふさわしいものに変えて了ったのだ。今思えば、全く、己は、己の<ruby>有<rt>も</rt></ruby>っていた<ruby>僅<rt>わず</rt></ruby>かばかりの才能を空費して了った訳だ。人生は何事をも<ruby>為<rt>な</rt></ruby>さぬには余りに長いが、何事かを為すには余りに短いなどと口先ばかりの警句を<ruby>弄<rt>ろう</rt></ruby>しながら、事実は、才能の不足を<ruby>暴露<rt>ばくろ</rt></ruby>するかも知れないとの<ruby>卑怯<rt>ひきょう</rt></ruby>な<ruby>危惧<rt>きぐ</rt></ruby>と、刻苦を<ruby>厭<rt>いと</rt></ruby>う怠惰とが己の<ruby>凡<rt>すべ</rt></ruby>てだったのだ。己よりも遥かに乏しい才能でありながら、それを専一に磨いたがために、堂々たる詩家となった者が幾らでもいるのだ。虎と成り果てた今、己は<ruby>漸<rt>ようや</rt></ruby>くそれに気が付いた。それを思うと、己は今も胸を<ruby>灼<rt>や</rt></ruby>かれるような悔を感じる。己には最早人間としての生活は出来ない。たとえ、今、己が頭の中で、どんな優れた詩を作ったにしたところで、どういう手段で発表できよう。まして、己の頭は<ruby>日毎<rt>ひごと</rt></ruby>に虎に近づいて行く。どうすればいいのだ。己の空費された過去は？　己は<ruby>堪<rt>たま</rt></ruby>らなくなる。そういう時、己は、向うの山の頂の<ruby>巖<rt>いわ</rt></ruby>に上り、<ruby>空谷<rt>くうこく</rt></ruby>に向って<ruby>吼<rt>ほ</rt></ruby>える。この胸を灼く悲しみを誰かに訴えたいのだ。己は昨夕も、<ruby>彼処<rt>あそこ</rt></ruby>で月に向って<ruby>咆<rt>ほ</rt></ruby>えた。誰かにこの苦しみが分って<ruby>貰<rt>もら</rt></ruby>えないかと。しかし、獣どもは己の声を聞いて、<ruby>唯<rt>ただ</rt></ruby>、<ruby>懼<rt>おそ</rt></ruby>れ、ひれ伏すばかり。山も<ruby>樹<rt>き</rt></ruby>も月も露も、一匹の虎が怒り狂って、<ruby>哮<rt>たけ</rt></ruby>っているとしか考えない。天に躍り地に伏して嘆いても、誰一人己の気持を分ってくれる者はない。ちょうど、人間だった頃、己の傷つき<ruby>易<rt>やす</rt></ruby>い内心を誰も理解してくれなかったように。己の毛皮の<ruby>濡<rt>ぬ</rt></ruby>れたのは、夜露のためばかりではない。
-漸く<ruby>四辺<rt>あたり</rt></ruby>の暗さが薄らいで来た。木の間を伝って、<ruby>何処<rt>どこ</rt></ruby>からか、<ruby>暁角<rt>ぎょうかく</rt></ruby>が哀しげに響き始めた。
-最早、別れを告げねばならぬ。酔わねばならぬ時が、（虎に還らねばならぬ時が）近づいたから、と、李徴の声が言った。だが、お別れする前にもう一つ頼みがある。それは我が妻子のことだ。<ruby>彼等<rt>かれら</rt></ruby>は<ruby>未<rt>ま</rt></ruby>だ<ruby>虢略<rt>かくりゃく</rt></ruby>にいる。固より、己の運命に就いては知る<ruby>筈<rt>はず</rt></ruby>がない。君が南から帰ったら、己は既に死んだと彼等に告げて貰えないだろうか。決して今日のことだけは明かさないで欲しい。厚かましいお願だが、彼等の孤弱を<ruby>憐<rt>あわ</rt></ruby>れんで、今後とも<ruby>道塗<rt>どうと</rt></ruby>に<ruby>飢凍<rt>きとう</rt></ruby>することのないように計らって戴けるならば、自分にとって、<ruby>恩倖<rt>おんこう</rt></ruby>、これに過ぎたるは<ruby>莫<rt>な</rt></ruby>い。
-言終って、叢中から<ruby>慟哭<rt>どうこく</rt></ruby>の声が聞えた。袁もまた涙を<ruby>泛<rt>うか</rt></ruby>べ、<ruby>欣<rt>よろこ</rt></ruby>んで李徴の意に<ruby>副<rt>そ</rt></ruby>いたい<ruby>旨<rt>むね</rt></ruby>を答えた。李徴の声はしかし<ruby>忽<rt>たちま</rt></ruby>ち又先刻の自嘲的な調子に<ruby>戻<rt>もど</rt></ruby>って、言った。
-本当は、<ruby>先<rt>ま</rt></ruby>ず、この事の方を先にお願いすべきだったのだ、己が人間だったなら。飢え凍えようとする妻子のことよりも、<ruby>己<rt>おのれ</rt></ruby>の乏しい詩業の方を気にかけているような男だから、こんな獣に身を<ruby>堕<rt>おと</rt></ruby>すのだ。
-そうして、<ruby>附加<rt>つけくわ</rt></ruby>えて言うことに、袁傪が嶺南からの帰途には決してこの<ruby>途<rt>みち</rt></ruby>を通らないで欲しい、その時には自分が酔っていて<ruby>故人<rt>とも</rt></ruby>を認めずに襲いかかるかも知れないから。又、今別れてから、前方百歩の所にある、あの丘に上ったら、<ruby>此方<rt>こちら</rt></ruby>を振りかえって見て貰いたい。自分は今の姿をもう一度お目に掛けよう。勇に誇ろうとしてではない。我が醜悪な姿を示して、<ruby>以<rt>もっ</rt></ruby>て、再び<ruby>此処<rt>ここ</rt></ruby>を過ぎて自分に会おうとの気持を君に起させない為であると。
-袁傪は叢に向って、<ruby>懇<rt>ねんご</rt></ruby>ろに別れの言葉を述べ、馬に上った。叢の中からは、又、<ruby>堪<rt>た</rt></ruby>え得ざるが如き<ruby>悲泣<rt>ひきゅう</rt></ruby>の声が<ruby>洩<rt>も</rt></ruby>れた。袁傪も幾度か叢を振返りながら、涙の中に出発した。
-一行が丘の上についた時、彼等は、言われた通りに振返って、先程の林間の草地を<ruby>眺<rt>なが</rt></ruby>めた。忽ち、一匹の虎が草の茂みから道の上に躍り出たのを彼等は見た。虎は、既に白く光を失った月を仰いで、二声三声<ruby>咆哮<rt>ほうこう</rt></ruby>したかと思うと、又、元の叢に躍り入って、再びその姿を見なかった。`;
-const BOOK_TEXTS = { 6: SANGETSUKI_TEXT };
 
-/* ─── 読みたいボタン ─── */
-function WantBtn({ id, wantList, toggle }) {
-  const on = wantList.includes(id);
-  return (
-    <button onClick={e=>{e.stopPropagation();toggle(id);}}
-      style={{background:"none",border:"none",cursor:"pointer",padding:"2px 4px",
-        fontSize:16,lineHeight:1,color:on?"#8a5a20":"rgba(130,100,60,0.25)",transition:"color 0.15s"}}>
-      {on?"★":"☆"}
-    </button>
-  );
-}
-
-/* ─── メインアプリ ─── */
 export default function App() {
   useEffect(()=>{
     if(document.getElementById("nsjp")) return;
@@ -569,6 +555,7 @@ export default function App() {
   const [query,setQuery]       = useState("");
   const [results,setResults]   = useState(null);
   const [loading,setLoading]   = useState(null);
+  const { catalog, loading: catLoading } = useCatalog(tab === "search");
 
   function toggleWant(id){ setWantList(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]); }
   function save(book){
@@ -580,17 +567,20 @@ export default function App() {
   function doSearch(e){
     e.preventDefault();
     const q=query.trim();
-    setResults(!q?SEARCH_POOL:SEARCH_POOL.filter(b=>b.title.includes(q)||b.author.includes(q)));
+    if(!q) return setResults(null);
+    if(catLoading||!catalog) { setResults(POPULAR.filter(b=>b.title.includes(q)||b.author.includes(q))); return; }
+    const found = searchCatalog(q, catalog, 100);
+    setResults(found);
   }
 
   if(reading) return (
-    <PageReader book={reading} text={BOOK_TEXTS[reading.id] || SANGETSUKI_TEXT}
+    <PageReader book={reading} text={DEMO_TEXT}
       onClose={()=>setReading(null)}
       fontSize={fontSize} setFontSize={setFontSize}/>
   );
 
   const base={minHeight:"100vh",background:"linear-gradient(150deg,#f7f2e8 0%,#ece6d8 100%)",fontFamily:"'Noto Serif JP','Yu Mincho','Hiragino Mincho Pro',serif"};
-  const wantedBooks = SEARCH_POOL.filter(b=>wantList.includes(b.id));
+  const wantedBooks = POPULAR.filter(b=>wantList.includes(b.id));
 
   function SaveBtn({ book }) {
     const saved=!!shelf.find(b=>b.id===book.id);
@@ -638,7 +628,7 @@ export default function App() {
         {tab==="shelf"&&(
           <>
             <div style={{fontSize:10,letterSpacing:"0.2em",color:"#9a8060",borderBottom:"1px solid #d0b898",paddingBottom:7,marginBottom:18}}>
-              オフライン書庫　{shelf.length} 冊 ／ 最大 {MAX_SHELF} 冊
+              書庫　{shelf.length} 冊 ／ 最大 {MAX_SHELF} 冊
             </div>
             {shelf.length===0?(
               <div style={{textAlign:"center",color:"#9a8060",fontSize:12,letterSpacing:"0.15em",marginTop:48,lineHeight:3}}>
@@ -693,6 +683,7 @@ export default function App() {
               <button type="submit" style={{background:"#2a1800",color:"#f7f2e8",border:"none",padding:"10px 16px",cursor:"pointer",fontSize:12,letterSpacing:"0.1em"}}>検索</button>
             </form>
 
+            {catLoading&&<div style={{fontSize:10,color:"#9a7050",letterSpacing:"0.15em",textAlign:"center",padding:"8px 0",marginBottom:8}}>カタログ読み込み中…</div>}
             {results===null&&(
               <>
                 <div style={{fontSize:10,letterSpacing:"0.28em",color:"#9a8060",borderBottom:"1px solid #d0b898",paddingBottom:6,marginBottom:16}}>人気ランキング</div>
@@ -729,7 +720,7 @@ export default function App() {
             {results!==null&&(
               <>
                 <div style={{fontSize:10,letterSpacing:"0.2em",color:"#9a8060",borderBottom:"1px solid #d0b898",paddingBottom:6,marginBottom:14}}>
-                  {results.length>0?`${results.length} 件`:"見つかりませんでした"}
+                  {results.length>0?`${results.length} 件（全${catalog?catalog.length.toLocaleString():"？"}作品から）`:"見つかりませんでした"}
                   <button onClick={()=>{setResults(null);setQuery("");}}
                     style={{background:"none",border:"none",cursor:"pointer",fontSize:9,color:"#9a8060",marginLeft:10,textDecoration:"underline"}}>
                     ランキングへ戻る
@@ -794,3 +785,4 @@ export default function App() {
     </div>
   );
 }
+
