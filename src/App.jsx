@@ -238,12 +238,10 @@ function AmazonModal({ book, onClose }) {
 function paginateText(text, w, h, fontSize) {
   const usableH = h - 80;   // padding 40px × 上下
   const usableW = w - 48;   // padding 24px × 左右
-  const lineH   = fontSize * 2.25;
-  const colGap  = 8;
-  // CJK文字幅 ≈ fontSize、letter-spacing(0.08em)込みで×1.1
-  const colW    = Math.ceil(fontSize * 1.1);
+  const lineH   = fontSize * 2.25;  // 縦方向：1文字が占める高さ
+  const colW    = fontSize;          // 横方向：1文字が占める幅（CJKは正方形）
   const charsPerCol = Math.max(1, Math.floor(usableH / lineH));
-  const colsPerPage = Math.max(1, Math.floor(usableW / (colW + colGap)));
+  const colsPerPage = Math.max(1, Math.floor(usableW / colW));
   const cpp         = Math.max(1, charsPerCol * colsPerPage);
   const pages = [];
   for (let i = 0; i < text.length; i += cpp) pages.push(text.slice(i, i + cpp));
@@ -328,11 +326,9 @@ function PageReader({ book, text, onClose, fontSize, setFontSize }) {
       >
         <div style={{
           writingMode:"vertical-rl",textOrientation:"mixed",
-          height:"100%",overflow:"hidden",
+          height:"100%",width:"100%",overflow:"hidden",
           fontSize,lineHeight:2.25,letterSpacing:"0.08em",color:"#140800",
           whiteSpace:"pre-wrap",
-          columnWidth:`${Math.ceil(fontSize*1.1)}px`,
-          columnGap:"8px",columnFill:"auto",
           padding:"40px 24px",
         }}>{pages[page]}</div>
       </div>
