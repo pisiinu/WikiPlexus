@@ -278,13 +278,33 @@ function splitHtmlAtChar(html, n) {
 }
 
 /* ─── ページ分割 ─── */
-function paginateText(html, w, h, fontSize) {
+/**
+ * vertical-rl モードで実際にブラウザが使うカラム幅を DOM 測定で取得する。
+ * line-height: 2.25 はカラム幅（block方向）を決めるが、実際の値はフォント実装依存のため測定が確実。
+ */
+function measureColWidth(fontSize) {
+  try {
+    const el = document.createElement('div');
+    el.setAttribute('style',
+      'position:fixed;visibility:hidden;pointer-events:none;white-space:nowrap;top:0;left:0;' +
+      `writing-mode:vertical-rl;font-size:${fontSize}px;line-height:2.25;letter-spacing:0.08em;` +
+      "font-family:'Noto Serif JP','Yu Mincho',serif;"
+    );
+    el.textContent = 'あ';
+    document.body.appendChild(el);
+    const w = el.getBoundingClientRect().width;
+    document.body.removeChild(el);
+    return w > 0 ? w : fontSize * 1.5;
+  } catch { return fontSize * 1.5; }
+}
+
+function paginateText(html, w, h, fontSize, colW) {
   const usableH = h - 80;        // padding 40px × 上下
   const usableW = w - 80;        // right:24px + left:56px（左端クリップ防止）
-  const lineH   = fontSize * 2.25;  // 縦方向：1文字が占める高さ（＝vertical-rlのカラム幅）
-  const colW    = lineH;            // vertical-rlでは line-height がカラム幅を決める
-  const charsPerCol = Math.max(1, Math.floor(usableH / lineH));
-  const colsPerPage = Math.max(1, Math.floor(usableW / colW));
+  const effectiveColW = colW ?? fontSize * 1.5;
+  // vertical-rl では各文字の縦方向占有 ≈ fontSize（CJK は正方形）
+  const charsPerCol = Math.max(1, Math.floor(usableH / fontSize));
+  const colsPerPage = Math.max(1, Math.floor(usableW / effectiveColW));
   const cpp         = Math.max(1, charsPerCol * colsPerPage);
   const pages = [];
   let pos = 0;
@@ -312,7 +332,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
   const { text, loading: textLoading, error: textError } = useBookText(book);
   const saved = loadBookProgress(book.id);
   // ローディング・エラー時はここで早期 return できないため hooks は全て上で呼ぶ
-  const initPages = ()=> paginateText(text || "", window.innerWidth, window.innerHeight, fontSize);
+  const initPages = ()=> paginateText(text || "", window.innerWidth, window.innerHeight, fontSize, fontSize * 1.5);
   const [pages,setPages]           = useState(initPages);
   const [page,setPage]             = useState(saved.page ?? 0);
   const [bookmarks,setBookmarks]   = useState(saved.bookmarks ?? []);
@@ -328,15 +348,22 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
   const containerRef = useRef(null);
   const touchStart   = useRef(null);
 
-  // フォントサイズ・テキスト変更時にページを再計算（テキスト未取得時はスキップ）
+  // フォントサイズ・テキスト変更時にページを再計算（DOM測定でカラム幅を取得）
   useEffect(()=>{
     if(!text) return;
     const el = containerRef.current;
     const w  = el ? el.clientWidth  : window.innerWidth;
     const h  = el ? el.clientHeight : window.innerHeight;
-    const np = paginateText(text, w, h, fontSize);
-    setPages(np);
-    setPage(p => Math.min(p, Math.max(0, np.length - 1)));
+    let cancelled = false;
+    (async()=>{
+      await document.fonts.ready; // フォントロード後に測定
+      if(cancelled) return;
+      const colW = measureColWidth(fontSize);
+      const np   = paginateText(text, w, h, fontSize, colW);
+      setPages(np);
+      setPage(p => Math.min(p, Math.max(0, np.length - 1)));
+    })();
+    return ()=>{ cancelled = true; };
   }, [text, fontSize]);
 
   // ページ・栞の変更を保存
@@ -400,7 +427,12 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     const s=touchStart.current; if(!s) return;
     const dx=e.touches[0].clientX-s.x, dy=e.touches[0].clientY-s.y;
     if(s.locked===null){ if(Math.abs(dx)<6&&Math.abs(dy)<6) return; s.locked=Math.abs(dx)>Math.abs(dy)?'h':'v'; }
-    if(s.locked==='h') setDragPageX(dx);
+    if(s.locked==='h'){
+      // 境界でのドラッグを完全に無効化（ページが存在しない方向）
+      if(dx>0 && page>=totalPages-1) return;
+      if(dx<0 && page<=0) return;
+      setDragPageX(dx);
+    }
   }
   function onTE(e){
     e.preventDefault(); // touchend後のclick合成イベントを抑止
@@ -523,25 +555,21 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
           {/* 上部バー */}
           <div onClick={e=>e.stopPropagation()}
             style={{background:PB,borderBottom:`1px solid ${BC}`,padding:"10px 14px",
-              display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+              display:"flex",alignItems:"center",gap:10}}>
             <button onClick={onClose}
               style={{background:"none",border:`1px solid #c0a880`,cursor:"pointer",padding:"5px 12px",
                 color:"#5a3a18",fontSize:11,letterSpacing:"0.08em",whiteSpace:"nowrap"}}>本を閉じる</button>
             <span style={{fontSize:13,fontWeight:700,color:"#1a0800",letterSpacing:"0.06em",flex:1}}>{book.title}</span>
-            <button onClick={async()=>{try{await navigator.clipboard.writeText(window.location.href);setCopied(true);setTimeout(()=>setCopied(false),2000);}catch{}}}
-              style={{background:"none",border:`1px solid #c0a880`,cursor:"pointer",padding:"5px 12px",
-                color:copied?"#5a9040":"#7a6040",fontSize:10,letterSpacing:"0.05em",whiteSpace:"nowrap"}}>
-              {copied?"コピー済！":"URLをコピー"}</button>
             <button onClick={()=>setAmazonModal(true)}
-              style={{background:"none",border:`1px solid #c0a880`,cursor:"pointer",padding:"5px 12px",
-                color:"#7a6040",fontSize:10,letterSpacing:"0.05em",whiteSpace:"nowrap"}}>紙の本を探す</button>
+              style={{background:"#2a1800",border:"none",cursor:"pointer",padding:"8px 16px",
+                color:"#f7f2e8",fontSize:12,letterSpacing:"0.08em",whiteSpace:"nowrap"}}>紙の本を探す</button>
           </div>
           {/* 中央透過（タップで閉じる） */}
           <div style={{flex:1}}/>
           {/* 下部設定 */}
           <div onClick={e=>e.stopPropagation()}
             style={{background:PB,borderTop:`1px solid ${BC}`,padding:"16px 16px 32px"}}>
-            {/* 文字サイズ */}
+            {/* 文字サイズ + URLコピー */}
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
               <span style={{fontSize:10,color:"#9a8060",letterSpacing:"0.1em",minWidth:58}}>文字サイズ</span>
               <div style={{display:"flex",gap:4}}>
@@ -555,6 +583,15 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
                       transition:"all 0.12s"}}>あ</button>
                 ))}
               </div>
+              <div style={{flex:1}}/>
+              <button onClick={async()=>{try{
+                const txt=`「${book.title}」${book.author} ${window.location.href}`;
+                await navigator.clipboard.writeText(txt);
+                setCopied(true);setTimeout(()=>setCopied(false),2000);
+              }catch{}}}
+                style={{background:"none",border:`1px solid #c0a880`,cursor:"pointer",padding:"5px 12px",
+                  color:copied?"#5a9040":"#7a6040",fontSize:10,letterSpacing:"0.05em",whiteSpace:"nowrap"}}>
+                {copied?"コピー済！":"URLをコピー"}</button>
             </div>
             {/* 栞操作 */}
             <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:14,flexWrap:"wrap"}}>
