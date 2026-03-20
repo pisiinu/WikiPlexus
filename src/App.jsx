@@ -287,24 +287,25 @@ function measureColWidth(fontSize) {
     const el = document.createElement('div');
     el.setAttribute('style',
       'position:fixed;visibility:hidden;pointer-events:none;white-space:nowrap;top:0;left:0;' +
-      `writing-mode:vertical-rl;font-size:${fontSize}px;line-height:1.8;letter-spacing:0.08em;` +
+      `writing-mode:vertical-rl;font-size:${fontSize}px;line-height:2.0;letter-spacing:0.08em;` +
       "font-family:'Noto Serif JP','Yu Mincho',serif;"
     );
     el.textContent = 'あ';
     document.body.appendChild(el);
     const w = el.getBoundingClientRect().width;
     document.body.removeChild(el);
-    return w > 0 ? w : fontSize * 1.5;
-  } catch { return fontSize * 1.5; }
+    // fontSize〜fontSize*3 の範囲を有効値とし、範囲外はフォールバック
+    return (w >= fontSize && w <= fontSize * 3) ? w : fontSize * 2.0;
+  } catch { return fontSize * 2.0; }
 }
 
 function paginateText(html, w, h, fontSize, colW) {
   const usableH = h - 80;        // padding 40px × 上下
   const usableW = w - 80;        // right:24px + left:56px（左端クリップ防止）
-  const effectiveColW = colW ?? fontSize * 1.5;
-  // vertical-rl では各文字の縦方向占有 ≈ fontSize（CJK は正方形）
+  const effectiveColW = (colW && colW >= fontSize) ? colW : fontSize * 2.0;
   const charsPerCol = Math.max(1, Math.floor(usableH / fontSize));
-  const colsPerPage = Math.max(1, Math.floor(usableW / effectiveColW));
+  // -1 で必ず1カラム分の余裕を確保（測定誤差・フォントメトリクス差を吸収）
+  const colsPerPage = Math.max(1, Math.floor(usableW / effectiveColW) - 1);
   const cpp         = Math.max(1, charsPerCol * colsPerPage);
   const pages = [];
   let pos = 0;
@@ -475,13 +476,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
       {/* 上部栞タブ */}
       <TopBookmarkTabs bookmarks={bookmarks} lastRead={lastRead} onJump={jumpBm} onReturn={returnLast}/>
 
-      {/* 書名・著者名（左上・薄め） */}
-      {!overlay&&!miniSeek&&(
-        <div style={{position:"absolute",top:10,left:14,zIndex:5,pointerEvents:"none"}}>
-          <div style={{fontSize:15,fontWeight:600,color:"rgba(90,60,20,0.38)",letterSpacing:"0.08em"}}>{book.title}</div>
-          <div style={{fontSize:11,color:"rgba(90,60,20,0.24)",letterSpacing:"0.06em",marginTop:2}}>{book.author}</div>
-        </div>
-      )}
+      {/* 書名・著者名 — オーバーレイ内のみに表示（読書中は非表示） */}
 
       {/* 本文 — 3パネルスライダー（ページフリップアニメ） */}
       <div
@@ -514,7 +509,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
               <div style={{
                 writingMode:"vertical-rl",textOrientation:"mixed",
                 height:"100%",width:"100%",overflow:"hidden",
-                fontSize,lineHeight:1.8,letterSpacing:"0.08em",color:"#140800",
+                fontSize,lineHeight:2.0,letterSpacing:"0.08em",color:"#140800",
                 whiteSpace:"pre-wrap",padding:"64px 0 40px 0",
               }} dangerouslySetInnerHTML={{__html:pages[p]}}/>
             </div>
