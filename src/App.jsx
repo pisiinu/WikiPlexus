@@ -176,32 +176,44 @@ function Seekbar({ page, totalPages, bookmarks, onSeek }) {
 }
 
 /* ─── 上部栞タブ（右上にまとめ、右=最初のページの栞） ─── */
-function TopBookmarkTabs({ bookmarks, onJump }) {
-  if(bookmarks.length===0) return null;
-  // page小さい順＝右から並べる（reverseして左から描画）
-  const sorted = [...bookmarks].sort((a,b)=>a.page-b.page); // 小→大
+function TopBookmarkTabs({ bookmarks, lastRead, onJump, onReturn }) {
+  if(bookmarks.length===0 && lastRead===null) return null;
+  const sorted = [...bookmarks].sort((a,b)=>a.page-b.page);
   return (
     <div style={{
       position:"absolute",top:0,right:12,zIndex:8,
       display:"flex",flexDirection:"row",gap:6,
       pointerEvents:"none",
     }}>
-      {[...sorted].reverse().map((bm,i)=>{
+      {/* 戻るタブ（lastReadがあれば左端に表示） */}
+      {lastRead!==null&&(
+        <div
+          onClick={e=>{e.stopPropagation();onReturn();}}
+          style={{
+            width:52,height:36,background:"rgba(80,60,35,0.72)",
+            borderRadius:"0 0 5px 5px",cursor:"pointer",pointerEvents:"all",
+            boxShadow:"0 2px 6px rgba(0,0,0,0.28)",
+            display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,
+          }}>
+          <div style={{fontSize:8,color:"rgba(255,255,255,0.65)",letterSpacing:"0.06em"}}>← 戻る</div>
+          <div style={{fontSize:9,color:"rgba(255,255,255,0.88)",fontWeight:600}}>{lastRead+1}p</div>
+        </div>
+      )}
+      {/* 栞タブ（ページ順に左から） */}
+      {sorted.map((bm)=>{
         const origIdx = bookmarks.indexOf(bm);
         const color = BM_COLORS[origIdx] ?? BM_COLORS[0];
         return (
-          <div key={i}
+          <div key={origIdx}
             onClick={e=>{e.stopPropagation();onJump(bm.page);}}
-            title={`栞${origIdx+1}：${bm.page+1}ページ`}
             style={{
-              width:26,height:36,
-              background:color,
-              borderRadius:"0 0 5px 5px",
-              cursor:"pointer",pointerEvents:"all",
+              width:52,height:36,background:color,
+              borderRadius:"0 0 5px 5px",cursor:"pointer",pointerEvents:"all",
               boxShadow:"0 2px 6px rgba(0,0,0,0.28)",
-              display:"flex",alignItems:"center",justifyContent:"center",
+              display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,
             }}>
-            <div style={{width:5,height:5,background:"rgba(255,255,255,0.6)",borderRadius:"50%"}}/>
+            <div style={{fontSize:8,color:"rgba(255,255,255,0.68)",letterSpacing:"0.06em"}}>栞{origIdx+1}</div>
+            <div style={{fontSize:9,color:"rgba(255,255,255,0.92)",fontWeight:600}}>{bm.page+1}p</div>
           </div>
         );
       })}
@@ -371,13 +383,13 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     <div style={{position:"fixed",inset:0,background:"linear-gradient(150deg,#f7f2e8 0%,#ece6d4 100%)",fontFamily:"'Noto Serif JP','Yu Mincho',serif",userSelect:"none"}}>
 
       {/* 上部栞タブ */}
-      <TopBookmarkTabs bookmarks={bookmarks} onJump={jumpBm}/>
+      <TopBookmarkTabs bookmarks={bookmarks} lastRead={lastRead} onJump={jumpBm} onReturn={returnLast}/>
 
       {/* 書名・著者名（左上・薄め） */}
       {!overlay&&!miniSeek&&(
         <div style={{position:"absolute",top:10,left:14,zIndex:5,pointerEvents:"none"}}>
-          <div style={{fontSize:10,color:"rgba(90,60,20,0.38)",letterSpacing:"0.1em"}}>{book.title}</div>
-          <div style={{fontSize:9,color:"rgba(90,60,20,0.25)",letterSpacing:"0.08em",marginTop:2}}>{book.author}</div>
+          <div style={{fontSize:13,color:"rgba(90,60,20,0.42)",letterSpacing:"0.1em"}}>{book.title}</div>
+          <div style={{fontSize:11,color:"rgba(90,60,20,0.28)",letterSpacing:"0.08em",marginTop:2}}>{book.author}</div>
         </div>
       )}
 
@@ -385,7 +397,11 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
       <div
         ref={containerRef}
         onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}
-        onClick={()=>{setOverlay(v=>!v);setMiniSeek(false);}}
+        onClick={e=>{
+          const y=e.clientY, h=window.innerHeight;
+          if(y<64||y>h-56) return;
+          setOverlay(v=>!v);setMiniSeek(false);
+        }}
         style={{position:"absolute",inset:0,overflow:"hidden",cursor:"pointer",
           opacity:overlay?0.16:1,transition:"opacity 0.22s"}}
       >
