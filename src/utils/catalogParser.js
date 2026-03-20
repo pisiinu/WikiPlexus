@@ -64,7 +64,7 @@ export function parseCatalogCsv(csvText) {
       id,
       title:      cols[1],
       yomi:       cols[3],
-      author:     sei + (mei ? ' ' + mei : ''),
+      author:     (sei + (mei ? ' ' + mei : '')).replace(/\s+/g, ''),
       authorYomi: seiYomi + meiYomi,
       url:        toRawUrl(htmlUrl),
     });

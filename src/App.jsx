@@ -374,10 +374,11 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
       {/* 上部栞タブ */}
       <TopBookmarkTabs bookmarks={bookmarks} onJump={jumpBm}/>
 
-      {/* 書名（左上・薄め） */}
+      {/* 書名・著者名（左上・薄め） */}
       {!overlay&&!miniSeek&&(
-        <div style={{position:"absolute",top:26,left:14,zIndex:5,fontSize:10,color:"rgba(90,60,20,0.28)",letterSpacing:"0.1em",pointerEvents:"none"}}>
-          {book.title}
+        <div style={{position:"absolute",top:26,left:14,zIndex:5,pointerEvents:"none"}}>
+          <div style={{fontSize:10,color:"rgba(90,60,20,0.35)",letterSpacing:"0.1em"}}>{book.title}</div>
+          <div style={{fontSize:9,color:"rgba(90,60,20,0.22)",letterSpacing:"0.08em",marginTop:2}}>{book.author}</div>
         </div>
       )}
 
@@ -534,14 +535,14 @@ function WantBtn({ id, wantList, toggle }) {
 
 /* ─── データ ─── */
 const POPULAR = [
-  {id:"k773",   title:"こころ",         author:"夏目漱石",   url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/001471/files/55540_55653.html"},
+  {id:"k773",   title:"こころ",         author:"夏目漱石",   url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000148/files/773_14560.html"},
   {id:"k752",   title:"坊っちゃん",     author:"夏目漱石",   url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000148/files/752_14964.html"},
   {id:"k128",   title:"羅生門",         author:"芥川龍之介", url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000879/files/128_15261.html"},
   {id:"k1567",  title:"走れメロス",     author:"太宰治",     url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000035/files/1567_14913.html"},
   {id:"k46322", title:"銀河鉄道の夜",   author:"宮沢賢治",   url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000081/files/46322_24347.html"},
   {id:"k623",   title:"山月記",         author:"中島敦",     url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000119/files/623_18353.html"},
   {id:"k301",   title:"人間失格",       author:"太宰治",     url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000035/files/301_14912.html"},
-  {id:"k538",   title:"舞姫",           author:"森鴎外",     url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000102/files/538_20593.html"},
+  {id:"k538",   title:"舞姫",           author:"森鴎外",     url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000129/files/682_15414.html"},
   {id:"k56041", title:"たけくらべ",     author:"樋口一葉",   url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000064/files/56041_54765.html"},
   {id:"k46349", title:"檸檬",           author:"梶井基次郎", url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000074/files/46349_23843.html"},
   {id:"k789",   title:"吾輩は猫である", author:"夏目漱石",   url:"https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/cards/000148/files/789_14547.html"},
