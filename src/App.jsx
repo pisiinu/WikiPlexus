@@ -264,15 +264,15 @@ function PageReader({ book, text, onClose, fontSize, setFontSize }) {
 
   /*
    * writing-mode: vertical-rl では：
-   *   - コンテンツは右端（page=0）から始まり、左方向に続く
-   *   - overflow:hidden のコンテナは、translateX=0 のとき innerRef の左端を表示
-   *   - 1ページ目（右端）を表示するには、innerRef を右にずらす必要がある
+   *   - 要素の右端（x=totalWidth）が1ページ目（冒頭）、左端（x=0）が末尾
+   *   - translateX=0 のとき、コンテナは innerRef の左端（末尾）を表示してしまう
+   *   - 冒頭を表示するには innerRef を左にずらす（負のtx）必要がある
    *
-   * tx = (totalPages - 1 - page) * cw
-   *   page=0 → tx=(totalPages-1)*cw → 一番右（1ページ目）✓
-   *   page=totalPages-1 → tx=0 → 一番左（最終ページ）✓
+   * tx = -(totalPages - 1 - page) * cw
+   *   page=0           → tx=-(totalPages-1)*cw → 右端（1ページ目）を表示 ✓
+   *   page=totalPages-1 → tx=0                 → 左端（最終ページ）を表示 ✓
    */
-  const tx = (totalPages - 1 - page) * cwRef.current;
+  const tx = -(totalPages - 1 - page) * cwRef.current;
 
   const nextP = ()=>setPage(p=>Math.min(p+1,totalPages-1));
   const prevP = ()=>setPage(p=>Math.max(p-1,0));
