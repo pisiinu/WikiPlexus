@@ -177,43 +177,44 @@ function Seekbar({ page, totalPages, bookmarks, onSeek }) {
 
 /* ─── 上部栞タブ（右上にまとめ、右=最初のページの栞） ─── */
 function TopBookmarkTabs({ bookmarks, lastRead, onJump, onReturn }) {
-  if(bookmarks.length===0 && lastRead===null) return null;
-  const sorted = [...bookmarks].sort((a,b)=>a.page-b.page);
+  // 全タブ（栞 + 戻る）をページ番号降順で並べる → 左:大ページ、右:小ページ
+  const tabs = [
+    ...bookmarks.map((bm, origIdx) => ({ kind:'bm', page:bm.page, origIdx })),
+    ...(lastRead!==null ? [{ kind:'return', page:lastRead }] : []),
+  ].sort((a,b) => b.page - a.page); // 降順：左が大、右が小
+  if(tabs.length===0) return null;
   return (
     <div style={{
       position:"absolute",top:0,right:12,zIndex:8,
       display:"flex",flexDirection:"row",gap:6,
       pointerEvents:"none",
     }}>
-      {/* 戻るタブ（lastReadがあれば左端に表示） */}
-      {lastRead!==null&&(
-        <div
-          onClick={e=>{e.stopPropagation();onReturn();}}
-          style={{
-            width:52,height:36,background:"rgba(80,60,35,0.72)",
-            borderRadius:"0 0 5px 5px",cursor:"pointer",pointerEvents:"all",
-            boxShadow:"0 2px 6px rgba(0,0,0,0.28)",
-            display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,
-          }}>
-          <div style={{fontSize:8,color:"rgba(255,255,255,0.65)",letterSpacing:"0.06em"}}>← 戻る</div>
-          <div style={{fontSize:9,color:"rgba(255,255,255,0.88)",fontWeight:600}}>{lastRead+1}p</div>
-        </div>
-      )}
-      {/* 栞タブ（ページ順に左から） */}
-      {sorted.map((bm)=>{
-        const origIdx = bookmarks.indexOf(bm);
-        const color = BM_COLORS[origIdx] ?? BM_COLORS[0];
+      {tabs.map((tab,i)=>{
+        if(tab.kind==='return') return (
+          <div key="return"
+            onClick={e=>{e.stopPropagation();onReturn();}}
+            style={{
+              width:52,height:36,background:"rgba(80,60,35,0.72)",
+              borderRadius:"0 0 5px 5px",cursor:"pointer",pointerEvents:"all",
+              boxShadow:"0 2px 6px rgba(0,0,0,0.28)",
+              display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,
+            }}>
+            <div style={{fontSize:8,color:"rgba(255,255,255,0.65)",letterSpacing:"0.06em"}}>← 戻る</div>
+            <div style={{fontSize:9,color:"rgba(255,255,255,0.88)",fontWeight:600}}>{tab.page+1}p</div>
+          </div>
+        );
+        const color = BM_COLORS[tab.origIdx] ?? BM_COLORS[0];
         return (
-          <div key={origIdx}
-            onClick={e=>{e.stopPropagation();onJump(bm.page);}}
+          <div key={tab.origIdx}
+            onClick={e=>{e.stopPropagation();onJump(tab.page);}}
             style={{
               width:52,height:36,background:color,
               borderRadius:"0 0 5px 5px",cursor:"pointer",pointerEvents:"all",
               boxShadow:"0 2px 6px rgba(0,0,0,0.28)",
               display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,
             }}>
-            <div style={{fontSize:8,color:"rgba(255,255,255,0.68)",letterSpacing:"0.06em"}}>栞{origIdx+1}</div>
-            <div style={{fontSize:9,color:"rgba(255,255,255,0.92)",fontWeight:600}}>{bm.page+1}p</div>
+            <div style={{fontSize:8,color:"rgba(255,255,255,0.68)",letterSpacing:"0.06em"}}>栞{tab.origIdx+1}</div>
+            <div style={{fontSize:9,color:"rgba(255,255,255,0.92)",fontWeight:600}}>{tab.page+1}p</div>
           </div>
         );
       })}
@@ -296,14 +297,25 @@ function paginateText(html, w, h, fontSize) {
   return pages.length > 0 ? pages : [""];
 }
 
+/* ─── 本ごとの栞・読書位置を localStorage に保存 ─── */
+function loadBookProgress(bookId) {
+  try { return JSON.parse(localStorage.getItem(`bunko_bm_${bookId}`) || '{}'); } catch { return {}; }
+}
+function saveBookProgress(bookId, data) {
+  try {
+    localStorage.setItem(`bunko_bm_${bookId}`, JSON.stringify({ ...loadBookProgress(bookId), ...data }));
+  } catch {}
+}
+
 /* ─── リーダー ─── */
 function PageReader({ book, onClose, fontSize, setFontSize }) {
   const { text, loading: textLoading, error: textError } = useBookText(book);
+  const saved = loadBookProgress(book.id);
   // ローディング・エラー時はここで早期 return できないため hooks は全て上で呼ぶ
   const initPages = ()=> paginateText(text || "", window.innerWidth, window.innerHeight, fontSize);
   const [pages,setPages]           = useState(initPages);
-  const [page,setPage]             = useState(0);
-  const [bookmarks,setBookmarks]   = useState([]);
+  const [page,setPage]             = useState(saved.page ?? 0);
+  const [bookmarks,setBookmarks]   = useState(saved.bookmarks ?? []);
   const [lastRead,setLastRead]     = useState(null);
   const [overlay,setOverlay]       = useState(false);
   const [miniSeek,setMiniSeek]     = useState(false);
@@ -322,6 +334,12 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     setPages(np);
     setPage(p => Math.min(p, Math.max(0, np.length - 1)));
   }, [text, fontSize]);
+
+  // ページ・栞の変更を保存
+  const pageRef = useRef(page);
+  useEffect(()=>{ pageRef.current = page; }, [page]);
+  useEffect(()=>{ saveBookProgress(book.id, { bookmarks }); }, [bookmarks]);
+  useEffect(()=>{ return ()=>{ saveBookProgress(book.id, { page: pageRef.current }); }; }, [book.id]);
 
   if (textLoading) return (
     <div style={{position:"fixed",inset:0,background:"linear-gradient(150deg,#f7f2e8 0%,#ece6d4 100%)",
