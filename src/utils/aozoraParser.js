@@ -49,9 +49,14 @@ export function processAozoraHtml(arrayBuffer) {
   // gaiji を含む <ruby> グループを「外字（読み）」形式に変換
   // iOS Safari で gaiji base を持つ <ruby> 要素が後続の ruby 描画を壊す可能性への対策
   // 例: <ruby><span class="gaiji">傪</span><rt>さん</rt></ruby> → <span class="gaiji">傪</span>（さん）
+  // 注: ベース部分は「<ruby>/<ruby>以外のタグ or タグでない文字」のみにマッチさせ
+  //     複数の ruby 要素をまたいで誤消費しないよう (?!\/?ruby) で境界を守る
   html = html.replace(
-    /<ruby>([\s\S]*?<span class="gaiji">[\s\S]*?<\/span>[\s\S]*?)<rt>([^<]*)<\/rt><\/ruby>/gi,
-    (_, base, reading) => `${base}（${reading}）`
+    /<ruby>((?:[^<]|<(?!\/?ruby\b)[^>]*>)*)<rt>([^<]*)<\/rt><\/ruby>/gi,
+    (match, base, reading) => {
+      if (!base.includes('class="gaiji"')) return match;
+      return `${base}（${reading}）`;
+    }
   );
   // 傍点(sesame系): 1文字ずつ <span class="sd"> に分割
   // → CSS position:absolute の ::after でナカグロを付与（line-height に影響しない）

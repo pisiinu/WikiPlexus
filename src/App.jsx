@@ -472,7 +472,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
           cursor:"pointer",
         }}
       >
-        <div style={{direction:"ltr",writingMode:"vertical-rl",textOrientation:"mixed",minHeight:"100%"}}>
+        <div style={{direction:"ltr",writingMode:"vertical-rl",textOrientation:"mixed",height:"100%"}}>
           <div
             style={{
               minHeight:"100%",
