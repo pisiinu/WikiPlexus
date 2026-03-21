@@ -8,15 +8,6 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.json" />
     <title>文庫びより</title>
-    <style>
-      /* ルビ: ブラウザのネイティブrubyレンダリングをバイパスして絶対配置 */
-      /* writing-mode:vertical-rl では physical right = block-start = ふりがなの位置 */
-      ruby { display: inline-block; position: relative; }
-      rt   { display: block; position: absolute;
-             right: -0.6em; top: 0;
-             font-size: 0.5em; line-height: 1; white-space: nowrap; }
-      rp   { display: none; }
-    </style>
   </head>
   <body>
     <div id="root"></div>

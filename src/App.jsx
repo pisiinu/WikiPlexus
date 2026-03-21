@@ -431,6 +431,9 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
       <style>{`
         .bunko-scroll::-webkit-scrollbar{display:none}
         .bunko-scroll{-ms-overflow-style:none;scrollbar-width:none}
+        ruby{-webkit-ruby-position:before;ruby-position:over}
+        rt{font-size:0.5em}
+        rp{display:none}
       `}</style>
 
       {/* 上部栞タブ */}
@@ -459,21 +462,23 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
         style={{
           position:"absolute",top:0,left:0,right:0,bottom:36,
           overflowX:"scroll",overflowY:"hidden",
-          writingMode:"vertical-rl",textOrientation:"mixed",
+          direction:"rtl",
           opacity:overlay?0.16:1,transition:"opacity 0.22s",
           cursor:"pointer",
         }}
       >
-        <div
-          style={{
-            minHeight:"100%",
-            padding:"40px 20px",
-            boxSizing:"border-box",
-            fontSize,lineHeight:1.8,letterSpacing:"0.06em",
-            color:"#140800",
-          }}
-          dangerouslySetInnerHTML={{__html: html||""}}
-        />
+        <div style={{direction:"ltr",writingMode:"vertical-rl",textOrientation:"mixed",minHeight:"100%"}}>
+          <div
+            style={{
+              minHeight:"100%",
+              padding:"40px 20px",
+              boxSizing:"border-box",
+              fontSize,lineHeight:1.8,letterSpacing:"0.06em",
+              color:"#140800",
+            }}
+            dangerouslySetInnerHTML={{__html: html||""}}
+          />
+        </div>
       </div>
 
       {/* 下端 横シークバー＋進捗（常時表示）*/}
