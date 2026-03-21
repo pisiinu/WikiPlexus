@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react"; // useLayoutEffect: scroll restore
 import { useBookText } from "./hooks/useBookText.js";
 import { useCatalog, searchCatalog } from "./hooks/useCatalog.js";
 
@@ -103,26 +103,23 @@ function BunkoCover({ book, size="normal", onClick, badge, width:wOvr }) {
   );
 }
 
-/* ─── ドラッグ可能シークバー（右端=1ページ目） ─── */
-function Seekbar({ page, totalPages, bookmarks, onSeek }) {
-  const trackRef  = useRef(null);
-  const dragging  = useRef(false);
+/* ─── ドラッグ可能シークバー（右端=冒頭、左端=末尾） ─── */
+function Seekbar({ ratio, bookmarks, onSeek }) {
+  const trackRef = useRef(null);
+  const dragging = useRef(false);
 
-  // 右端=page0、左端=page(totalPages-1)
-  // page p の left位置：((totalPages-1-p)/(totalPages-1))*100%
-  const pctLeft = p => totalPages<=1 ? 100 : ((totalPages-1-p)/(totalPages-1))*100;
+  // ratio 0=冒頭(右端)、1=末尾(左端)
+  // left位置: (1-r)*100% → ratio=0→100%(右端)、ratio=1→0%(左端)
+  const pctLeft = r => (1 - r) * 100;
 
-  function pageFromClientX(clientX) {
-    if(!trackRef.current) return page;
+  function ratioFromClientX(clientX) {
+    if(!trackRef.current) return ratio;
     const rect = trackRef.current.getBoundingClientRect();
-    // 右端=0ページ、左端=最終ページ（x座標は左端が小さい）
-    const r = 1 - Math.max(0,Math.min(1,(clientX-rect.left)/rect.width));
-    return Math.round(r*(totalPages-1));
+    return Math.min(1, Math.max(0, 1 - (clientX - rect.left) / rect.width));
   }
 
-  // マウスイベント
-  function onMouseDown(e) { e.preventDefault(); dragging.current=true; onSeek(pageFromClientX(e.clientX)); }
-  function onMouseMove(e) { if(dragging.current) onSeek(pageFromClientX(e.clientX)); }
+  function onMouseDown(e) { e.preventDefault(); dragging.current=true; onSeek(ratioFromClientX(e.clientX)); }
+  function onMouseMove(e) { if(dragging.current) onSeek(ratioFromClientX(e.clientX)); }
   function onMouseUp()    { dragging.current=false; }
   useEffect(()=>{
     window.addEventListener("mousemove",onMouseMove);
@@ -130,41 +127,34 @@ function Seekbar({ page, totalPages, bookmarks, onSeek }) {
     return()=>{window.removeEventListener("mousemove",onMouseMove);window.removeEventListener("mouseup",onMouseUp);};
   });
 
-  // タッチイベント
-  function onTouchStart(e) { e.stopPropagation(); dragging.current=true; onSeek(pageFromClientX(e.touches[0].clientX)); }
-  function onTouchMove(e)  { e.stopPropagation(); if(dragging.current) onSeek(pageFromClientX(e.touches[0].clientX)); }
+  function onTouchStart(e) { e.stopPropagation(); dragging.current=true; onSeek(ratioFromClientX(e.touches[0].clientX)); }
+  function onTouchMove(e)  { e.stopPropagation(); if(dragging.current) onSeek(ratioFromClientX(e.touches[0].clientX)); }
   function onTouchEnd()    { dragging.current=false; }
 
   return (
     <div
       ref={trackRef}
       onMouseDown={onMouseDown}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
+      onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
       style={{height:20,display:"flex",alignItems:"center",cursor:"pointer",userSelect:"none"}}
     >
       <div style={{position:"relative",width:"100%",height:5,background:"rgba(160,130,90,0.18)",borderRadius:2}}>
-        {/* 既読バー：右端から現在位置まで */}
         <div style={{
           position:"absolute",right:0,top:0,bottom:0,
-          width:`${pctLeft(page)}%`,
+          width:`${pctLeft(ratio)}%`,
           background:"rgba(90,60,20,0.22)",borderRadius:2,
         }}/>
-        {/* 栞マーカー */}
         {bookmarks.map((bm,i)=>(
-          <div key={i}
-            style={{
-              position:"absolute",left:`${pctLeft(bm.page)}%`,top:"50%",
-              transform:"translate(-50%,-50%)",
-              width:11,height:11,borderRadius:"50%",
-              background:BM_COLORS[i],border:"1.5px solid rgba(255,255,255,0.75)",
-              zIndex:2,pointerEvents:"none",
-            }}/>
+          <div key={i} style={{
+            position:"absolute",left:`${pctLeft(bm.ratio)}%`,top:"50%",
+            transform:"translate(-50%,-50%)",
+            width:11,height:11,borderRadius:"50%",
+            background:BM_COLORS[i],border:"1.5px solid rgba(255,255,255,0.75)",
+            zIndex:2,pointerEvents:"none",
+          }}/>
         ))}
-        {/* 現在位置サム */}
         <div style={{
-          position:"absolute",left:`${pctLeft(page)}%`,top:"50%",
+          position:"absolute",left:`${pctLeft(ratio)}%`,top:"50%",
           transform:"translate(-50%,-50%)",
           width:15,height:15,borderRadius:"50%",
           background:"#3a2010",boxShadow:"0 1px 4px rgba(0,0,0,0.32)",
@@ -175,13 +165,12 @@ function Seekbar({ page, totalPages, bookmarks, onSeek }) {
   );
 }
 
-/* ─── 上部栞タブ（右上にまとめ、右=最初のページの栞） ─── */
-function TopBookmarkTabs({ bookmarks, lastRead, onJump, onReturn }) {
-  // 全タブ（栞 + 戻る）をページ番号降順で並べる → 左:大ページ、右:小ページ
+/* ─── 上部栞タブ（右上にまとめ、右=冒頭寄りの栞） ─── */
+function TopBookmarkTabs({ bookmarks, lastReadRatio, onJump, onReturn }) {
   const tabs = [
-    ...bookmarks.map((bm, origIdx) => ({ kind:'bm', page:bm.page, origIdx })),
-    ...(lastRead!==null ? [{ kind:'return', page:lastRead }] : []),
-  ].sort((a,b) => b.page - a.page); // 降順：左が大、右が小
+    ...bookmarks.map((bm, origIdx) => ({ kind:'bm', ratio:bm.ratio, pct:bm.pct, origIdx })),
+    ...(lastReadRatio!==null ? [{ kind:'return', ratio:lastReadRatio, pct:Math.round(lastReadRatio*100) }] : []),
+  ].sort((a,b) => b.ratio - a.ratio); // 降順：左が末尾寄り、右が冒頭寄り
   if(tabs.length===0) return null;
   return (
     <div style={{
@@ -200,13 +189,13 @@ function TopBookmarkTabs({ bookmarks, lastRead, onJump, onReturn }) {
               display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,
             }}>
             <div style={{fontSize:8,color:"rgba(255,255,255,0.65)",letterSpacing:"0.06em"}}>← 戻る</div>
-            <div style={{fontSize:9,color:"rgba(255,255,255,0.88)",fontWeight:600}}>{tab.page+1}p</div>
+            <div style={{fontSize:9,color:"rgba(255,255,255,0.88)",fontWeight:600}}>{tab.pct}%</div>
           </div>
         );
         const color = BM_COLORS[tab.origIdx] ?? BM_COLORS[0];
         return (
           <div key={tab.origIdx}
-            onClick={e=>{e.stopPropagation();onJump(tab.page);}}
+            onClick={e=>{e.stopPropagation();onJump(tab.ratio);}}
             style={{
               width:52,height:36,background:color,
               borderRadius:"0 0 5px 5px",cursor:"pointer",pointerEvents:"all",
@@ -214,7 +203,7 @@ function TopBookmarkTabs({ bookmarks, lastRead, onJump, onReturn }) {
               display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1,
             }}>
             <div style={{fontSize:8,color:"rgba(255,255,255,0.68)",letterSpacing:"0.06em"}}>栞{tab.origIdx+1}</div>
-            <div style={{fontSize:9,color:"rgba(255,255,255,0.92)",fontWeight:600}}>{tab.page+1}p</div>
+            <div style={{fontSize:9,color:"rgba(255,255,255,0.92)",fontWeight:600}}>{tab.pct}%</div>
           </div>
         );
       })}
@@ -261,38 +250,33 @@ function saveBookProgress(bookId, data) {
 /* ─── リーダー ─── */
 function PageReader({ book, onClose, fontSize, setFontSize }) {
   const { html, loading: textLoading, error: textError } = useBookText(book);
-  const saved     = loadBookProgress(book.id);
-  const [page,setPage]             = useState(saved.page ?? 0);
-  const [totalPages,setTotalPages] = useState(1);
-  const [bookmarks,setBookmarks]   = useState(saved.bookmarks ?? []);
-  const [lastRead,setLastRead]     = useState(null);
-  const [overlay,setOverlay]       = useState(false);
-  const [miniSeek,setMiniSeek]     = useState(false);
-  const [amazonModal,setAmazonModal] = useState(false);
-  const [copied,setCopied]         = useState(false);
-  const [animating,setAnimating]   = useState(false);
+  const saved = loadBookProgress(book.id);
 
-  const contentRef = useRef(null);
-  const touchStart = useRef(null);
-  const pageRef    = useRef(page);
+  const [progress, setProgress]       = useState(0); // 0–100 (%)
+  const [bookmarks, setBookmarks]     = useState(saved.bookmarks ?? []);
+  const [lastReadRatio, setLastReadRatio] = useState(null);
+  const [overlay, setOverlay]         = useState(false);
+  const [miniSeek, setMiniSeek]       = useState(false);
+  const [amazonModal, setAmazonModal] = useState(false);
+  const [copied, setCopied]           = useState(false);
 
-  // HTML・フォントサイズ変更後にカラム数（総ページ数）を測定
+  const containerRef   = useRef(null);
+  const scrollRatioRef = useRef(saved.scrollRatio ?? 0);
+
+  // HTML読み込み後にスクロール位置を復元
   useLayoutEffect(()=>{
-    if(!contentRef.current || !html) return;
-    const colW = window.innerWidth - 40;
+    if(!html || !containerRef.current) return;
     const raf = requestAnimationFrame(()=>{
-      const el = contentRef.current;
+      const el = containerRef.current;
       if(!el) return;
-      const total = Math.max(1, Math.round(el.offsetWidth / colW));
-      setTotalPages(total);
-      setPage(p => Math.min(p, total - 1));
+      const max = el.scrollWidth - el.clientWidth;
+      el.scrollLeft = -(scrollRatioRef.current * max);
     });
     return ()=> cancelAnimationFrame(raf);
   }, [html, fontSize]);
 
-  useEffect(()=>{ pageRef.current = page; }, [page]);
   useEffect(()=>{ saveBookProgress(book.id, { bookmarks }); }, [bookmarks]);
-  useEffect(()=>{ return ()=>{ saveBookProgress(book.id, { page: pageRef.current }); }; }, [book.id]);
+  useEffect(()=>{ return ()=>{ saveBookProgress(book.id, { scrollRatio: scrollRatioRef.current }); }; }, [book.id]);
 
   if(textLoading) return (
     <div style={{position:"fixed",inset:0,background:"linear-gradient(150deg,#f7f2e8 0%,#ece6d4 100%)",
@@ -322,105 +306,93 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
 
   const FS=[16,19,22];
 
-  function goNext(){ if(page>=totalPages-1) return; setAnimating(true); setPage(p=>p+1); setTimeout(()=>setAnimating(false),280); }
-  function goPrev(){ if(page<=0) return; setAnimating(true); setPage(p=>p-1); setTimeout(()=>setAnimating(false),280); }
-
-  function onTS(e){ touchStart.current={x:e.touches[0].clientX,y:e.touches[0].clientY,locked:null}; }
-  function onTM(e){
-    const s=touchStart.current; if(!s) return;
-    const dx=e.touches[0].clientX-s.x, dy=e.touches[0].clientY-s.y;
-    if(s.locked===null){ if(Math.abs(dx)<6&&Math.abs(dy)<6) return; s.locked=Math.abs(dx)>Math.abs(dy)?'h':'v'; }
-  }
-  function onTE(e){
-    e.preventDefault();
-    const s=touchStart.current; touchStart.current=null; if(!s) return;
-    const dx=e.changedTouches[0].clientX-s.x;
-    const dy=e.changedTouches[0].clientY-s.y;
-    if(s.locked==='h'&&Math.abs(dx)>40){
-      if(dx>0) goNext(); else goPrev();
-    } else if(Math.abs(dx)<12&&Math.abs(dy)<12){
-      const y=s.y, h=window.innerHeight;
-      if(y<60||y>h-50) return;
-      const x=s.x, vw=window.innerWidth;
-      if(x<60){ goNext(); return; }
-      if(x>vw-60){ goPrev(); return; }
-      setOverlay(v=>!v); setMiniSeek(false);
-    }
+  // スクロール位置→進捗率を更新
+  function onScroll(){
+    const el = containerRef.current; if(!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    const ratio = max > 0 ? Math.min(1, Math.max(0, -el.scrollLeft / max)) : 0;
+    scrollRatioRef.current = ratio;
+    setProgress(Math.round(ratio * 100));
   }
 
-  const hasBmHere=!!bookmarks.find(b=>b.page===page);
-  function addBm(){ if(bookmarks.length>=MAX_BM||hasBmHere) return; setBookmarks(prev=>[...prev,{page}].sort((a,b)=>a.page-b.page)); }
-  function removeBm(p){ setBookmarks(prev=>prev.filter(b=>b.page!==p)); }
-  function jumpBm(p){ setLastRead(page); setPage(p); setOverlay(false); }
-  function returnLast(){ if(lastRead!==null){setPage(lastRead);setLastRead(null);} }
+  // 指定割合へスクロール
+  function scrollToRatio(ratio){
+    const el = containerRef.current; if(!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    el.scrollTo({ left: -(ratio * max), behavior:'smooth' });
+  }
+
+  // 左端タップ→先へ（スクロール左）、右端タップ→戻る（スクロール右）
+  function scrollForward(){ containerRef.current?.scrollBy({ left: -window.innerWidth, behavior:'smooth' }); }
+  function scrollBack()   { containerRef.current?.scrollBy({ left:  window.innerWidth, behavior:'smooth' }); }
+
+  const hasBmHere = bookmarks.some(b => Math.abs(b.ratio - scrollRatioRef.current) < 0.005);
+
+  function addBm(){
+    if(bookmarks.length>=MAX_BM || hasBmHere) return;
+    const ratio = scrollRatioRef.current;
+    setBookmarks(prev=>[...prev,{ratio, pct:Math.round(ratio*100)}].sort((a,b)=>a.ratio-b.ratio));
+  }
+  function removeBmAt(ratio){ setBookmarks(prev=>prev.filter(b=>Math.abs(b.ratio-ratio)>0.005)); }
+  function jumpBm(ratio){ setLastReadRatio(scrollRatioRef.current); scrollToRatio(ratio); setOverlay(false); }
+  function returnLast(){ if(lastReadRatio!==null){ scrollToRatio(lastReadRatio); setLastReadRatio(null); } }
 
   const PB="rgba(248,243,234,0.97)";
   const BC="rgba(192,168,136,0.35)";
-  const VW=window.innerWidth;
-  const MARGIN=20;
-  const COL_W=VW-MARGIN*2;
 
   return (
     <div style={{position:"fixed",inset:0,background:"linear-gradient(150deg,#f7f2e8 0%,#ece6d4 100%)",fontFamily:"'Noto Serif JP','Yu Mincho',serif",userSelect:"none"}}>
+      <style>{`.bunko-scroll::-webkit-scrollbar{display:none}.bunko-scroll{-ms-overflow-style:none;scrollbar-width:none}`}</style>
 
       {/* 上部栞タブ */}
-      <TopBookmarkTabs bookmarks={bookmarks} lastRead={lastRead} onJump={jumpBm} onReturn={returnLast}/>
+      <TopBookmarkTabs bookmarks={bookmarks} lastReadRatio={lastReadRatio} onJump={jumpBm} onReturn={returnLast}/>
 
-      {/* 書名 — 読書中は左上に薄く表示 */}
+      {/* 書名 */}
       {!overlay&&(
         <div style={{position:"absolute",top:0,left:0,right:0,zIndex:5,padding:"10px 14px",pointerEvents:"none"}}>
           <div style={{fontSize:11,color:"rgba(60,35,10,0.38)",letterSpacing:"0.08em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{book.title}</div>
         </div>
       )}
 
-      {/* 本文エリア（タッチ・クリック） */}
+      {/* ─── 縦書きスクロールコンテナ ─── */}
       <div
-        onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}
+        ref={containerRef}
+        className="bunko-scroll"
+        onScroll={onScroll}
         onClick={e=>{
-          const y=e.clientY, h=window.innerHeight;
+          const {clientX:x,clientY:y}=e;
+          const h=window.innerHeight, vw=window.innerWidth;
           if(y<60||y>h-50) return;
-          const x=e.clientX;
-          if(x<60){ goNext(); return; }
-          if(x>VW-60){ goPrev(); return; }
+          if(x<60){ scrollForward(); return; }
+          if(x>vw-60){ scrollBack(); return; }
           setOverlay(v=>!v); setMiniSeek(false);
         }}
-        style={{position:"absolute",inset:0,overflow:"hidden",cursor:"pointer",
-          opacity:overlay?0.16:1,transition:"opacity 0.22s"}}
+        style={{
+          position:"absolute",inset:0,
+          overflowX:"scroll",overflowY:"hidden",
+          writingMode:"vertical-rl",textOrientation:"mixed",
+          opacity:overlay?0.16:1,transition:"opacity 0.22s",
+          cursor:"pointer",
+        }}
       >
-        {/* CSSカラム縦書きコンテナ
-            position:absolute; right:MARGIN → 右マージン分だけ内側に配置
-            translateX(page * COL_W) → 右方向にずらして後のページを表示 */}
         <div
-          ref={contentRef}
           style={{
-            position:"absolute",
-            right:MARGIN,
-            top:0,
-            height:"calc(100vh - 80px)",
-            marginTop:40,
-            writingMode:"vertical-rl",
-            textOrientation:"mixed",
-            columnWidth:`${COL_W}px`,
-            columnGap:0,
-            columnFill:"auto",
-            fontSize,
-            lineHeight:1.8,
-            letterSpacing:"0.06em",
+            minHeight:"100%",
+            padding:"40px 20px",
+            boxSizing:"border-box",
+            fontSize,lineHeight:1.8,letterSpacing:"0.06em",
             color:"#140800",
-            transform:`translateX(${page * COL_W}px)`,
-            transition:animating?"transform 0.28s ease":"none",
-            willChange:"transform",
           }}
-          dangerouslySetInnerHTML={{__html: html || ""}}
+          dangerouslySetInnerHTML={{__html: html||""}}
         />
       </div>
 
-      {/* ノンブル */}
+      {/* 進捗 % */}
       {!overlay&&(
         <div onClick={e=>{e.stopPropagation();setMiniSeek(v=>!v);}}
           style={{position:"absolute",bottom:10,left:0,right:0,textAlign:"center",
-            fontSize:10,color:"rgba(90,60,20,0.35)",letterSpacing:"0.15em",cursor:"pointer",zIndex:5}}>
-          {page+1} / {totalPages}
+            fontSize:10,color:"rgba(90,60,20,0.35)",letterSpacing:"0.15em",cursor:"pointer",zIndex:5,pointerEvents:"all"}}>
+          {progress}%
         </div>
       )}
 
@@ -429,15 +401,15 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
         <div onClick={e=>e.stopPropagation()}
           style={{position:"absolute",bottom:30,left:16,right:16,zIndex:12,
             background:PB,border:`1px solid ${BC}`,padding:"12px 14px 10px",boxShadow:"0 2px 16px rgba(0,0,0,0.1)"}}>
-          <Seekbar page={page} totalPages={totalPages} bookmarks={bookmarks} onSeek={p=>setPage(p)}/>
+          <Seekbar ratio={progress/100} bookmarks={bookmarks} onSeek={scrollToRatio}/>
           <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:8.5,color:"rgba(80,50,20,0.38)"}}>
-            <span>{totalPages}p（末）</span>
-            {[...bookmarks].sort((a,b)=>b.page-a.page).map((bm,i)=>{
+            <span>末尾</span>
+            {[...bookmarks].sort((a,b)=>b.ratio-a.ratio).map((bm,i)=>{
               const oi=bookmarks.indexOf(bm);
-              return <span key={i} style={{color:BM_COLORS[oi]}}>栞{oi+1}:{bm.page+1}p</span>;
+              return <span key={i} style={{color:BM_COLORS[oi]}}>栞{oi+1}:{bm.pct}%</span>;
             })}
-            {lastRead!==null&&<span style={{color:"#aaa"}}>読:{lastRead+1}p</span>}
-            <span>1p（頭）</span>
+            {lastReadRatio!==null&&<span style={{color:"#aaa"}}>読:{Math.round(lastReadRatio*100)}%</span>}
+            <span>冒頭</span>
           </div>
         </div>
       )}
@@ -482,9 +454,9 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
             <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:14,flexWrap:"wrap"}}>
               <span style={{fontSize:10,color:"#9a8060",letterSpacing:"0.1em",minWidth:58}}>栞</span>
               {bookmarks.map((bm,i)=>(
-                <button key={i} onClick={()=>jumpBm(bm.page)}
+                <button key={i} onClick={()=>jumpBm(bm.ratio)}
                   style={{background:BM_COLORS[i],color:"#f7f2e8",border:"none",padding:"5px 11px",cursor:"pointer",fontSize:10,letterSpacing:"0.06em",borderRadius:2}}>
-                  {i+1}: {bm.page+1}p
+                  {i+1}: {bm.pct}%
                 </button>
               ))}
               {bookmarks.length<MAX_BM&&!hasBmHere&&(
@@ -494,29 +466,29 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
                 </button>
               )}
               {hasBmHere&&(
-                <button onClick={()=>removeBm(page)}
+                <button onClick={()=>removeBmAt(scrollRatioRef.current)}
                   style={{background:"none",border:`1px solid #c0a880`,color:"#8a5040",padding:"5px 11px",cursor:"pointer",fontSize:10,letterSpacing:"0.06em"}}>
                   ✕ 外す
                 </button>
               )}
-              {lastRead!==null&&(
+              {lastReadRatio!==null&&(
                 <button onClick={returnLast}
                   style={{background:"none",border:"1px dashed #b0906a",color:"#7a6050",padding:"5px 11px",cursor:"pointer",fontSize:10,letterSpacing:"0.06em"}}>
-                  ← 読んでいたページへ
+                  ← 読んでいた場所へ
                 </button>
               )}
             </div>
             <div>
-              <div style={{fontSize:10,color:"#9a8060",marginBottom:4,letterSpacing:"0.1em"}}>{page+1} / {totalPages} ページ</div>
-              <Seekbar page={page} totalPages={totalPages} bookmarks={bookmarks} onSeek={p=>setPage(p)}/>
+              <div style={{fontSize:10,color:"#9a8060",marginBottom:4,letterSpacing:"0.1em"}}>{progress}% 読了</div>
+              <Seekbar ratio={progress/100} bookmarks={bookmarks} onSeek={scrollToRatio}/>
               <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:8,color:"rgba(80,50,20,0.35)"}}>
-                <span>{totalPages}p（末）</span>
-                {[...bookmarks].sort((a,b)=>b.page-a.page).map((bm,i)=>{
+                <span>末尾</span>
+                {[...bookmarks].sort((a,b)=>b.ratio-a.ratio).map((bm,i)=>{
                   const oi=bookmarks.indexOf(bm);
-                  return <span key={i} style={{color:BM_COLORS[oi]}}>栞{oi+1}:{bm.page+1}p</span>;
+                  return <span key={i} style={{color:BM_COLORS[oi]}}>栞{oi+1}:{bm.pct}%</span>;
                 })}
-                {lastRead!==null&&<span style={{color:"#bbb"}}>読:{lastRead+1}p</span>}
-                <span>1p（頭）</span>
+                {lastReadRatio!==null&&<span style={{color:"#bbb"}}>読:{Math.round(lastReadRatio*100)}%</span>}
+                <span>冒頭</span>
               </div>
             </div>
           </div>
