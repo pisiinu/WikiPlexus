@@ -45,6 +45,12 @@ export function processAozoraHtml(arrayBuffer) {
   html = html.replace(/<\/?rp[^>]*>/gi, '');
   // <rb> タグを除去（中身は保持）→ HTML5 ruby: <ruby>base<rt>読み</rt></ruby>
   html = html.replace(/<\/?rb[^>]*>/gi, '');
+  // 傍点(sesame系): 1文字ずつ <span class="sd"> に分割
+  // → CSS position:absolute の ::after でナカグロを付与（line-height に影響しない）
+  html = html.replace(
+    /<(?:strong|em)[^>]*class="(?:SESAME_DOT|sesame_dot|sesame|傍点|ゴマ傍点|黒ゴマ傍点)"[^>]*>([^<]*)<\/(?:strong|em)>/gi,
+    (_, text) => [...text].map(ch => `<span class="sd">${ch}</span>`).join('')
+  );
   // 青空文庫注記 ［＃...］ を除去
   html = html.replace(/［＃[^］]*］/g, '');
   return html;
