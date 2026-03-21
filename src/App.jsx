@@ -431,10 +431,10 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
       <style>{`
         .bunko-scroll::-webkit-scrollbar{display:none}
         .bunko-scroll{-ms-overflow-style:none;scrollbar-width:none}
-        ruby{display:inline-flex;flex-direction:column-reverse;align-items:flex-start}
-        rt{display:block;font-size:0.5em;line-height:1}
-        .sd{position:relative}
-        .sd::after{content:"・";position:absolute;right:-1em;top:0;font-size:0.5em;line-height:1}
+        ruby{display:inline-block;position:relative;overflow:visible}
+        rt{display:block;position:absolute;writing-mode:vertical-rl;text-orientation:mixed;font-size:0.5em;line-height:1;right:-1em;top:0;white-space:nowrap}
+        .sd{display:inline-block;position:relative}
+        .sd::after{content:"・";display:block;position:absolute;writing-mode:vertical-rl;font-size:0.5em;line-height:1;right:-1em;top:0}
         em.white_sesame_dot,em.白ゴマ傍点,strong.WHITE_SESAME_DOT{font-style:normal;font-weight:normal;-webkit-text-emphasis:open sesame;text-emphasis:open sesame}
         em.circle_dot,em.丸傍点,em.白丸傍点,strong.CIRCLE_DOT{font-style:normal;font-weight:normal;-webkit-text-emphasis:open circle;text-emphasis:open circle}
         em.black_circle_dot,em.黒丸傍点,strong.BLACK_CIRCLE_DOT{font-style:normal;font-weight:normal;-webkit-text-emphasis:filled circle;text-emphasis:filled circle}

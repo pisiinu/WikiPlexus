@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { fetchAozoraHtml } from '../utils/aozoraParser.js';
 
-const CACHE_PREFIX    = 'bunko_html_v10_'; // HTML形式キャッシュ（v10: ruby→inline-flex, 傍点→.sdスパン+絶対配置ナカグロ）
+const CACHE_PREFIX    = 'bunko_html_v11_'; // HTML形式キャッシュ（v11: ruby→inline-block+position:absolute rt, 傍点→.sdスパン+絶対配置ナカグロ）
 const MAX_CACHED_BOOKS = 30;
 
 // 旧バージョンのキャッシュをすべて削除
 (()=>{
   try {
     Object.keys(localStorage)
-      .filter(k => ['bunko_text_','bunko_html_v1_','bunko_html_v2_','bunko_html_v3_','bunko_html_v4_','bunko_html_v5_','bunko_html_v6_','bunko_html_v7_','bunko_html_v8_','bunko_html_v9_'].some(p => k.startsWith(p)))
+      .filter(k => ['bunko_text_','bunko_html_v1_','bunko_html_v2_','bunko_html_v3_','bunko_html_v4_','bunko_html_v5_','bunko_html_v6_','bunko_html_v7_','bunko_html_v8_','bunko_html_v9_','bunko_html_v10_'].some(p => k.startsWith(p)))
       .forEach(k => localStorage.removeItem(k));
   } catch {}
 })();
