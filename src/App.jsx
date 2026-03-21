@@ -433,7 +433,12 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
         .bunko-scroll{-ms-overflow-style:none;scrollbar-width:none}
         ruby{-webkit-ruby-position:before;ruby-position:over}
         rt{font-size:0.5em}
-        em.sesame{font-style:normal;-webkit-text-emphasis:sesame;text-emphasis:sesame}
+        rp{display:none}
+        em.sesame,em.傍点,em.ゴマ傍点,em.黒ゴマ傍点{font-style:normal;-webkit-text-emphasis:filled sesame;text-emphasis:filled sesame}
+        em.白ゴマ傍点{font-style:normal;-webkit-text-emphasis:open sesame;text-emphasis:open sesame}
+        em.丸傍点,em.白丸傍点{font-style:normal;-webkit-text-emphasis:open circle;text-emphasis:open circle}
+        em.黒丸傍点{font-style:normal;-webkit-text-emphasis:filled circle;text-emphasis:filled circle}
+        em.三角傍点{font-style:normal;-webkit-text-emphasis:filled triangle;text-emphasis:filled triangle}
       `}</style>
 
       {/* 上部栞タブ */}
