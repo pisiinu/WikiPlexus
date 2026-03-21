@@ -432,11 +432,11 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
         .bunko-scroll::-webkit-scrollbar{display:none}
         .bunko-scroll{-ms-overflow-style:none;scrollbar-width:none}
         ruby{-webkit-ruby-position:before;ruby-position:over}
-        rt{font-size:0.7em;line-height:1}
+        rt{font-size:0.75em;line-height:1}
         .gaiji{font-family:'Noto Serif JP','HiraMinProN-W3','Hiragino Mincho ProN','Hiragino Mincho Pro',serif}
         .sd{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Ccircle cx='5' cy='5' r='4.5' fill='%23140800'/%3E%3C/svg%3E");background-size:0.3em 0.3em;background-repeat:no-repeat;background-position:right center}
         blockquote,pre{font-size:inherit;font-family:inherit}
-        [class*="jisage"]{font-size:inherit}
+        [class*="jisage"]{font-size:inherit;height:100%;box-sizing:border-box}
         em.white_sesame_dot,em.白ゴマ傍点,strong.WHITE_SESAME_DOT{font-style:normal;font-weight:normal;-webkit-text-emphasis:open sesame;text-emphasis:open sesame}
         em.circle_dot,em.丸傍点,em.白丸傍点,strong.CIRCLE_DOT{font-style:normal;font-weight:normal;-webkit-text-emphasis:open circle;text-emphasis:open circle}
         em.black_circle_dot,em.黒丸傍点,strong.BLACK_CIRCLE_DOT{font-style:normal;font-weight:normal;-webkit-text-emphasis:filled circle;text-emphasis:filled circle}
@@ -477,7 +477,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
         <div style={{direction:"ltr",writingMode:"vertical-rl",textOrientation:"mixed",height:"100%"}}>
           <div
             style={{
-              minHeight:"100%",
+              height:"100%",
               padding:"40px 20px",
               boxSizing:"border-box",
               fontSize,lineHeight:1.8,letterSpacing:"0.06em",
