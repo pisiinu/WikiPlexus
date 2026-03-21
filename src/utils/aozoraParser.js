@@ -42,10 +42,8 @@ export function processAozoraHtml(arrayBuffer) {
   html = html.replace(/<img[^>]*\/?>/gi, '');
   // 青空文庫注記 ［＃...］ を除去
   html = html.replace(/［＃[^］]*］/g, '');
-  // <rp>タグ・内容および<rb>タグを除去
-  // → <ruby>Base<rt>Reading</rt></ruby> の最小構造にする
-  html = html.replace(/<rp[^>]*>[^<]*<\/rp>/gi, '');
-  html = html.replace(/<\/?rb[^>]*>/gi, '');
+  // <rp>タグ・内容を除去（rp{display:none}でも可だがHTMLを軽くする）
+  html = html.replace(/<rp[^>]*>[\s\S]*?<\/rp>/gi, '');
 
   return html;
 }
