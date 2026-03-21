@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { fetchAozoraHtml } from '../utils/aozoraParser.js';
 
-const CACHE_PREFIX    = 'bunko_html_v17_'; // HTML形式キャッシュ（v17: gaiji-ruby括弧変換を削除、ネイティブrubyのみ使用）
+const CACHE_PREFIX    = 'bunko_html_v18_'; // HTML形式キャッシュ（v18: 傍点をSVG背景画像に変更、blockquote/pre font-size inherit、rt 0.6em）
 const MAX_CACHED_BOOKS = 30;
 
 // 旧バージョンのキャッシュをすべて削除
 (()=>{
   try {
     Object.keys(localStorage)
-      .filter(k => ['bunko_text_','bunko_html_v1_','bunko_html_v2_','bunko_html_v3_','bunko_html_v4_','bunko_html_v5_','bunko_html_v6_','bunko_html_v7_','bunko_html_v8_','bunko_html_v9_','bunko_html_v10_','bunko_html_v11_','bunko_html_v12_','bunko_html_v13_','bunko_html_v14_','bunko_html_v15_','bunko_html_v16_'].some(p => k.startsWith(p)))
+      .filter(k => ['bunko_text_','bunko_html_v1_','bunko_html_v2_','bunko_html_v3_','bunko_html_v4_','bunko_html_v5_','bunko_html_v6_','bunko_html_v7_','bunko_html_v8_','bunko_html_v9_','bunko_html_v10_','bunko_html_v11_','bunko_html_v12_','bunko_html_v13_','bunko_html_v14_','bunko_html_v15_','bunko_html_v16_','bunko_html_v17_'].some(p => k.startsWith(p)))
       .forEach(k => localStorage.removeItem(k));
   } catch {}
 })();
