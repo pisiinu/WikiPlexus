@@ -392,6 +392,8 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     const ratio = max > 0 ? Math.min(1, Math.max(0, -el.scrollLeft / max)) : 0;
     scrollRatioRef.current = ratio;
     setProgress(Math.round(ratio * 100));
+    // 元の場所マーカー付近まで自然に読み進めたら消去
+    setLastReadRatio(prev => (prev !== null && Math.abs(ratio - prev) < 0.015) ? null : prev);
   }
 
   // 指定割合へスクロール
@@ -415,7 +417,8 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
   }
   function removeBmAt(ratio){ setBookmarks(prev=>prev.filter(b=>Math.abs(b.ratio-ratio)>0.005)); }
   function jumpBm(bm){
-    setLastReadRatio(scrollRatioRef.current);
+    // 最初のジャンプ時だけ元の場所を記録（2回目以降は上書きしない）
+    setLastReadRatio(prev => prev ?? scrollRatioRef.current);
     if(bm.charOffset!=null) scrollToCharOffset(bm.charOffset);
     else scrollToRatio(bm.ratio);
     setOverlay(false);
