@@ -36,10 +36,13 @@ export function processAozoraHtml(arrayBuffer) {
     html = html.slice(tagEnd, sliceEnd);
   }
 
-  // 外字 img → Unicode
-  html = html.replace(/<img[^>]*alt="([^"]*)"[^>]*\/?>/gi, (_, alt) => resolveGaiji(alt));
+  // 外字 img → Unicode（span で包んで後続ルビへの影響をリセット）
+  html = html.replace(/<img[^>]*alt="([^"]*)"[^>]*\/?>/gi,
+    (_, alt) => `<span class="gaiji">${resolveGaiji(alt)}</span>`);
   // 残った img タグを除去
   html = html.replace(/<img[^>]*\/?>/gi, '');
+  // <rb>タグを除去（内容保持）→ HTML5 ruby 形式に統一
+  html = html.replace(/<\/?rb>/gi, '');
   // 青空文庫注記 ［＃...］ を除去
   html = html.replace(/［＃[^］]*］/g, '');
   return html;

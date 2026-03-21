@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { fetchAozoraHtml } from '../utils/aozoraParser.js';
 
-const CACHE_PREFIX    = 'bunko_html_v6_';  // HTML形式キャッシュ（v6: rp除去を廃止→CSS display:none）
+const CACHE_PREFIX    = 'bunko_html_v7_';  // HTML形式キャッシュ（v7: gaiji span wrapper, rb除去, sesame_dot CSS）
 const MAX_CACHED_BOOKS = 30;
 
 // 旧バージョンのキャッシュをすべて削除
 (()=>{
   try {
     Object.keys(localStorage)
-      .filter(k => ['bunko_text_','bunko_html_v1_','bunko_html_v2_','bunko_html_v3_','bunko_html_v4_','bunko_html_v5_'].some(p => k.startsWith(p)))
+      .filter(k => ['bunko_text_','bunko_html_v1_','bunko_html_v2_','bunko_html_v3_','bunko_html_v4_','bunko_html_v5_','bunko_html_v6_'].some(p => k.startsWith(p)))
       .forEach(k => localStorage.removeItem(k));
   } catch {}
 })();
