@@ -433,8 +433,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
         .bunko-scroll{-ms-overflow-style:none;scrollbar-width:none}
         ruby{-webkit-ruby-position:before;ruby-position:over}
         rt{font-size:0.5em}
-        rp{display:none}
-        em.sesame_dot,em.sesame,em.傍点,em.ゴマ傍点,em.黒ゴマ傍点,strong.SESAME_DOT,strong.sesame_dot{font-style:normal;font-weight:normal;-webkit-text-emphasis:filled sesame;text-emphasis:filled sesame}
+        em.sesame_dot,em.sesame,em.傍点,em.ゴマ傍点,em.黒ゴマ傍点,strong.SESAME_DOT,strong.sesame_dot{font-style:normal;font-weight:normal;-webkit-text-emphasis:"・";text-emphasis:"・";-webkit-text-emphasis-position:over right;text-emphasis-position:over right}
         em.white_sesame_dot,em.白ゴマ傍点,strong.WHITE_SESAME_DOT{font-style:normal;font-weight:normal;-webkit-text-emphasis:open sesame;text-emphasis:open sesame}
         em.circle_dot,em.丸傍点,em.白丸傍点,strong.CIRCLE_DOT{font-style:normal;font-weight:normal;-webkit-text-emphasis:open circle;text-emphasis:open circle}
         em.black_circle_dot,em.黒丸傍点,strong.BLACK_CIRCLE_DOT{font-style:normal;font-weight:normal;-webkit-text-emphasis:filled circle;text-emphasis:filled circle}

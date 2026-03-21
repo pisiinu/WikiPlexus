@@ -36,15 +36,15 @@ export function processAozoraHtml(arrayBuffer) {
     html = html.slice(tagEnd, sliceEnd);
   }
 
-  // 外字 img が <rb> 内にある場合: <rb></rb> ごと除去してプレーンテキストに置換
-  // （<rb>内の<img>はrubyアルゴリズムを破壊するため最優先で処理）
-  html = html.replace(/<rb>\s*<img[^>]*alt="([^"]*)"[^>]*\/>\s*<\/rb>/gi,
-    (_, alt) => resolveGaiji(alt));
-  // それ以外の外字 img: プレーンテキストに置換
-  html = html.replace(/<img[^>]*alt="([^"]*)"[^>]*\/?>/gi,
-    (_, alt) => resolveGaiji(alt));
+  // 外字 img → Unicode（rb内・外どちらも）
+  html = html.replace(/<img[^>]*alt="([^"]*)"[^>]*\/?>/gi, (_, alt) => resolveGaiji(alt));
   // 残った img タグを除去
   html = html.replace(/<img[^>]*\/?>/gi, '');
+  // <rp> を中身ごと除去（フォールバック括弧不要）
+  html = html.replace(/<rp[^>]*>[^<]*<\/rp>/gi, '');
+  html = html.replace(/<\/?rp[^>]*>/gi, '');
+  // <rb> タグを除去（中身は保持）→ HTML5 ruby: <ruby>base<rt>読み</rt></ruby>
+  html = html.replace(/<\/?rb[^>]*>/gi, '');
   // 青空文庫注記 ［＃...］ を除去
   html = html.replace(/［＃[^］]*］/g, '');
   return html;
