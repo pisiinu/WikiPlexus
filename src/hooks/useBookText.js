@@ -1,37 +1,29 @@
 import { useState, useEffect } from 'react';
-import { fetchAozoraText } from '../utils/aozoraParser.js';
+import { fetchAozoraHtml } from '../utils/aozoraParser.js';
 
-const CACHE_PREFIX = 'bunko_text_v3_';  // v3: main_text正確抽出対応
+const CACHE_PREFIX    = 'bunko_html_v1_';  // HTML形式キャッシュ
 const MAX_CACHED_BOOKS = 30;
 
-// 旧バージョンのキャッシュを削除
+// 旧バージョンのキャッシュをすべて削除
 (()=>{
   try {
     Object.keys(localStorage)
-      .filter(k => k.startsWith('bunko_text_') && !k.startsWith('bunko_text_v3_'))
+      .filter(k => k.startsWith('bunko_text_'))
       .forEach(k => localStorage.removeItem(k));
   } catch {}
 })();
 
-function getCacheKey(bookId) {
-  return CACHE_PREFIX + bookId;
-}
-
 function readCache(bookId) {
   try {
-    const raw = localStorage.getItem(getCacheKey(bookId));
+    const raw = localStorage.getItem(CACHE_PREFIX + bookId);
     return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-function writeCache(bookId, text) {
+function writeCache(bookId, html) {
   try {
-    // LRU: 上限を超えたら最古エントリを削除
     const keys = Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX));
     if (keys.length >= MAX_CACHED_BOOKS) {
-      // savedAt が最も古いものを削除
       let oldest = null, oldestTime = Infinity;
       keys.forEach(k => {
         try {
@@ -41,67 +33,41 @@ function writeCache(bookId, text) {
       });
       if (oldest) localStorage.removeItem(oldest);
     }
-    localStorage.setItem(getCacheKey(bookId), JSON.stringify({ text, savedAt: Date.now() }));
-  } catch {
-    // localStorage 容量不足は無視
-  }
+    localStorage.setItem(CACHE_PREFIX + bookId, JSON.stringify({ html, savedAt: Date.now() }));
+  } catch {}
 }
 
 /**
- * 青空文庫テキストを動的取得するフック
- * キャッシュ: localStorage（最大30作品）
- * @param {{ id, url }} book
- * @returns {{ text: string|null, loading: boolean, error: string|null }}
+ * 青空文庫 HTML フラグメントを取得するフック
+ * @returns {{ html: string|null, loading: boolean, error: string|null }}
  */
 export function useBookText(book) {
-  const [state, setState] = useState({ text: null, loading: false, error: null });
+  const [state, setState] = useState({ html: null, loading: false, error: null });
 
   useEffect(() => {
-    if (!book) {
-      setState({ text: null, loading: false, error: null });
-      return;
-    }
+    if (!book) { setState({ html: null, loading: false, error: null }); return; }
 
-    // キャッシュ確認
     const cached = readCache(book.id);
-    if (cached) {
-      setState({ text: cached.text, loading: false, error: null });
-      return;
-    }
+    if (cached) { setState({ html: cached.html, loading: false, error: null }); return; }
 
-    if (!book.url) {
-      setState({ text: null, loading: false, error: 'no_url' });
-      return;
-    }
+    if (!book.url) { setState({ html: null, loading: false, error: 'no_url' }); return; }
 
-    setState({ text: null, loading: true, error: null });
-
+    setState({ html: null, loading: true, error: null });
     let cancelled = false;
-    fetchAozoraText(book.url)
-      .then(text => {
+
+    fetchAozoraHtml(book.url)
+      .then(html => {
         if (cancelled) return;
-        writeCache(book.id, text);
-        setState({ text, loading: false, error: null });
+        writeCache(book.id, html);
+        setState({ html, loading: false, error: null });
       })
       .catch(() => {
         if (cancelled) return;
-        setState({ text: null, loading: false, error: 'network' });
+        setState({ html: null, loading: false, error: 'network' });
       });
 
     return () => { cancelled = true; };
   }, [book?.id, book?.url]);
 
   return state;
-}
-
-/** キャッシュ済み書籍IDリストを返す */
-export function getCachedBookIds() {
-  return Object.keys(localStorage)
-    .filter(k => k.startsWith(CACHE_PREFIX))
-    .map(k => k.slice(CACHE_PREFIX.length));
-}
-
-/** 特定書籍のキャッシュを削除 */
-export function removeCachedBook(bookId) {
-  localStorage.removeItem(getCacheKey(bookId));
 }

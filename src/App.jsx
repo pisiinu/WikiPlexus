@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { useBookText } from "./hooks/useBookText.js";
 import { useCatalog, searchCatalog } from "./hooks/useCatalog.js";
 
@@ -248,59 +248,6 @@ function AmazonModal({ book, onClose }) {
   );
 }
 
-/* ─── HTMLページ分割 ─── */
-// HTML内のベース文字数で分割—<ruby>内の<rt>・<rp>はカウントしない、<ruby>元素の途中で分割しない
-function splitHtmlAtChar(html, n) {
-  let count = 0, i = 0;
-  let inTag = false, skipContent = false, tagBuf = '', rubyDepth = 0;
-  while (i < html.length) {
-    const ch = html[i];
-    if (!inTag && ch === '<') { inTag = true; tagBuf = '<'; i++; continue; }
-    if (inTag) {
-      tagBuf += ch;
-      if (ch === '>') {
-        inTag = false;
-        if (/^<ruby[\s>]/i.test(tagBuf)) rubyDepth++;
-        if (/^<\/ruby>/i.test(tagBuf)) rubyDepth--;
-        if (/^<r[tp][\s>]/i.test(tagBuf)) skipContent = true;
-        if (/^<\/r[tp]>/i.test(tagBuf)) skipContent = false;
-        tagBuf = '';
-      }
-      i++; continue;
-    }
-    if (!skipContent) {
-      count++;
-      if (count >= n && rubyDepth === 0) return i + 1;
-    }
-    i++;
-  }
-  return i;
-}
-
-/* ─── ページ分割 ─── */
-const PADDING          = 24;   // 左右余白px
-const LINE_HEIGHT_RATIO = 1.8; // 行間
-const RUBY_EXTRA        = 12;  // ルビ用の追加幅px
-
-function paginateText(html, fontSize) {
-  const charsPerCol  = Math.max(1, Math.floor((window.innerHeight - 120) / (fontSize * LINE_HEIGHT_RATIO)));
-  const colWidth     = fontSize + RUBY_EXTRA;
-  const availableWidth = window.innerWidth - PADDING * 2;
-  const colsPerPage  = Math.max(1, Math.floor(availableWidth / colWidth));
-  const cpp          = Math.max(1, charsPerCol * colsPerPage);
-  const pages = [];
-  let pos = 0;
-  while (pos < html.length) {
-    while (pos < html.length && (html[pos] === '\n' || html[pos] === '\r')) pos++;
-    if (pos >= html.length) break;
-    const len = splitHtmlAtChar(html.slice(pos), cpp);
-    if (len === 0) break;
-    pages.push(html.slice(pos, pos + len));
-    pos += len;
-  }
-  return pages.length > 0 ? pages : [""];
-}
-
 /* ─── 本ごとの栞・読書位置を localStorage に保存 ─── */
 function loadBookProgress(bookId) {
   try { return JSON.parse(localStorage.getItem(`bunko_bm_${bookId}`) || '{}'); } catch { return {}; }
@@ -313,40 +260,40 @@ function saveBookProgress(bookId, data) {
 
 /* ─── リーダー ─── */
 function PageReader({ book, onClose, fontSize, setFontSize }) {
-  const { text, loading: textLoading, error: textError } = useBookText(book);
-  const saved = loadBookProgress(book.id);
-  // ローディング・エラー時はここで早期 return できないため hooks は全て上で呼ぶ
-  const initPages = ()=> paginateText(text || "", fontSize);
-  const [pages,setPages]           = useState(initPages);
+  const { html, loading: textLoading, error: textError } = useBookText(book);
+  const saved     = loadBookProgress(book.id);
   const [page,setPage]             = useState(saved.page ?? 0);
+  const [totalPages,setTotalPages] = useState(1);
   const [bookmarks,setBookmarks]   = useState(saved.bookmarks ?? []);
   const [lastRead,setLastRead]     = useState(null);
   const [overlay,setOverlay]       = useState(false);
   const [miniSeek,setMiniSeek]     = useState(false);
   const [amazonModal,setAmazonModal] = useState(false);
   const [copied,setCopied]         = useState(false);
+  const [animating,setAnimating]   = useState(false);
 
-  const [dragPageX,setDragPageX]       = useState(0);
-  const [pageAnimating,setPageAnimating] = useState(false);
+  const contentRef = useRef(null);
+  const touchStart = useRef(null);
+  const pageRef    = useRef(page);
 
-  const containerRef = useRef(null);
-  const touchStart   = useRef(null);
+  // HTML・フォントサイズ変更後にカラム数（総ページ数）を測定
+  useLayoutEffect(()=>{
+    if(!contentRef.current || !html) return;
+    const raf = requestAnimationFrame(()=>{
+      const el = contentRef.current;
+      if(!el) return;
+      const total = Math.max(1, Math.round(el.offsetWidth / window.innerWidth));
+      setTotalPages(total);
+      setPage(p => Math.min(p, total - 1));
+    });
+    return ()=> cancelAnimationFrame(raf);
+  }, [html, fontSize]);
 
-  // フォントサイズ・テキスト変更時にページを再計算
-  useEffect(()=>{
-    if(!text) return;
-    const np = paginateText(text, fontSize);
-    setPages(np);
-    setPage(p => Math.min(p, Math.max(0, np.length - 1)));
-  }, [text, fontSize]);
-
-  // ページ・栞の変更を保存
-  const pageRef = useRef(page);
   useEffect(()=>{ pageRef.current = page; }, [page]);
   useEffect(()=>{ saveBookProgress(book.id, { bookmarks }); }, [bookmarks]);
   useEffect(()=>{ return ()=>{ saveBookProgress(book.id, { page: pageRef.current }); }; }, [book.id]);
 
-  if (textLoading) return (
+  if(textLoading) return (
     <div style={{position:"fixed",inset:0,background:"linear-gradient(150deg,#f7f2e8 0%,#ece6d4 100%)",
       display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
       fontFamily:"'Noto Serif JP','Yu Mincho',serif",gap:20}}>
@@ -359,81 +306,48 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     </div>
   );
 
-  if (textError) return (
+  if(textError) return (
     <div style={{position:"fixed",inset:0,background:"linear-gradient(150deg,#f7f2e8 0%,#ece6d4 100%)",
       display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
       fontFamily:"'Noto Serif JP','Yu Mincho',serif",gap:14,padding:24,textAlign:"center"}}>
       <div style={{fontSize:13,color:"#5a3a18",letterSpacing:"0.1em"}}>{book.title}</div>
       <div style={{fontSize:11,color:"#c05030",letterSpacing:"0.08em",marginTop:4}}>
-        {textError === "network" ? "通信エラー：テキストを取得できませんでした" : "テキストが見つかりません"}
+        {textError==="network"?"通信エラー：テキストを取得できませんでした":"テキストが見つかりません"}
       </div>
       <div style={{fontSize:9,color:"#9a7050",marginTop:2}}>オンライン接続を確認してください</div>
       <button onClick={onClose} style={{marginTop:16,background:"#2a1800",color:"#f7f2e8",border:"none",padding:"8px 24px",cursor:"pointer",fontSize:11,letterSpacing:"0.1em"}}>戻る</button>
     </div>
   );
 
-  const totalPages = pages.length;
-  const nextP = ()=>setPage(p=>Math.min(p+1,totalPages-1));
-  const prevP = ()=>setPage(p=>Math.max(p-1,0));
-  const FS = [16,19,22];
+  const FS=[16,19,22];
 
-  // ページ送りアニメ（スワイプ・タップ共通）
-  function goNext(){
-    if(page>=totalPages-1) return;
-    const w=containerRef.current?.clientWidth??window.innerWidth;
-    setPageAnimating(true); setDragPageX(w);
-    setTimeout(()=>{ nextP(); setPageAnimating(false); setDragPageX(0); }, 260);
-  }
-  function goPrev(){
-    if(page<=0) return;
-    const w=containerRef.current?.clientWidth??window.innerWidth;
-    setPageAnimating(true); setDragPageX(-w);
-    setTimeout(()=>{ prevP(); setPageAnimating(false); setDragPageX(0); }, 260);
-  }
+  function goNext(){ if(page>=totalPages-1) return; setAnimating(true); setPage(p=>p+1); setTimeout(()=>setAnimating(false),280); }
+  function goPrev(){ if(page<=0) return; setAnimating(true); setPage(p=>p-1); setTimeout(()=>setAnimating(false),280); }
 
-  // タッチ判定（ページフリップアニメ＋dead zone＋edge tap）
-  function onTS(e){
-    const w=containerRef.current?containerRef.current.clientWidth:window.innerWidth;
-    touchStart.current={x:e.touches[0].clientX,y:e.touches[0].clientY,locked:null,w};
-    setPageAnimating(false);
-  }
+  function onTS(e){ touchStart.current={x:e.touches[0].clientX,y:e.touches[0].clientY,locked:null}; }
   function onTM(e){
     const s=touchStart.current; if(!s) return;
     const dx=e.touches[0].clientX-s.x, dy=e.touches[0].clientY-s.y;
     if(s.locked===null){ if(Math.abs(dx)<6&&Math.abs(dy)<6) return; s.locked=Math.abs(dx)>Math.abs(dy)?'h':'v'; }
-    if(s.locked==='h'){
-      // 境界でのドラッグを完全に無効化（ページが存在しない方向）
-      if(dx>0 && page>=totalPages-1) return;
-      if(dx<0 && page<=0) return;
-      setDragPageX(dx);
-    }
   }
   function onTE(e){
-    e.preventDefault(); // touchend後のclick合成イベントを抑止
+    e.preventDefault();
     const s=touchStart.current; touchStart.current=null; if(!s) return;
     const dx=e.changedTouches[0].clientX-s.x;
     const dy=e.changedTouches[0].clientY-s.y;
     if(s.locked==='h'&&Math.abs(dx)>40){
-      // 右スワイプ=次ページ、左スワイプ=前ページ（境界ではスナップバック）
-      if(dx>0 && page<totalPages-1){ goNext(); }
-      else if(dx<0 && page>0){ goPrev(); }
-      else { setPageAnimating(true); setDragPageX(0); setTimeout(()=>setPageAnimating(false),260); }
+      if(dx>0) goNext(); else goPrev();
     } else if(Math.abs(dx)<12&&Math.abs(dy)<12){
-      // タップ処理（onTEで完結、onClickは発火しない）
-      setDragPageX(0);
       const y=s.y, h=window.innerHeight;
-      if(y<64||y>h-56) return; // 上下dead zone
+      if(y<60||y>h-50) return;
       const x=s.x, vw=window.innerWidth;
-      if(x<60){ goNext(); return; }       // 左端: 次ページ（縦書き右→左）
-      if(x>vw-60){ goPrev(); return; }    // 右端: 前ページ
+      if(x<60){ goNext(); return; }
+      if(x>vw-60){ goPrev(); return; }
       setOverlay(v=>!v); setMiniSeek(false);
-    } else {
-      // スナップバック
-      setPageAnimating(true); setDragPageX(0); setTimeout(()=>setPageAnimating(false),260);
     }
   }
 
-  const hasBmHere = !!bookmarks.find(b=>b.page===page);
+  const hasBmHere=!!bookmarks.find(b=>b.page===page);
   function addBm(){ if(bookmarks.length>=MAX_BM||hasBmHere) return; setBookmarks(prev=>[...prev,{page}].sort((a,b)=>a.page-b.page)); }
   function removeBm(p){ setBookmarks(prev=>prev.filter(b=>b.page!==p)); }
   function jumpBm(p){ setLastRead(page); setPage(p); setOverlay(false); }
@@ -441,6 +355,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
 
   const PB="rgba(248,243,234,0.97)";
   const BC="rgba(192,168,136,0.35)";
+  const VW=window.innerWidth;
 
   return (
     <div style={{position:"fixed",inset:0,background:"linear-gradient(150deg,#f7f2e8 0%,#ece6d4 100%)",fontFamily:"'Noto Serif JP','Yu Mincho',serif",userSelect:"none"}}>
@@ -450,68 +365,59 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
 
       {/* 書名 — 読書中は左上に薄く表示 */}
       {!overlay&&(
-        <div style={{
-          position:"absolute",top:0,left:0,right:0,zIndex:5,
-          padding:"10px 14px",pointerEvents:"none",
-        }}>
-          <div style={{
-            fontSize:11,color:"rgba(60,35,10,0.38)",
-            letterSpacing:"0.08em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
-            fontFamily:"'Noto Serif JP','Yu Mincho',serif",
-          }}>{book.title}</div>
+        <div style={{position:"absolute",top:0,left:0,right:0,zIndex:5,padding:"10px 14px",pointerEvents:"none"}}>
+          <div style={{fontSize:11,color:"rgba(60,35,10,0.38)",letterSpacing:"0.08em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{book.title}</div>
         </div>
       )}
 
-      {/* 本文 — 3パネルスライダー（ページフリップアニメ） */}
+      {/* 本文エリア（タッチ・クリック） */}
       <div
-        ref={containerRef}
         onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}
         onClick={e=>{
-          // タッチ端末はonTEで処理済み。マウス操作のみここに到達
           const y=e.clientY, h=window.innerHeight;
-          if(y<64||y>h-56) return;
-          const x=e.clientX, vw=window.innerWidth;
-          if(x<60){ goNext(); return; }    // 左端: 次ページ
-          if(x>vw-60){ goPrev(); return; } // 右端: 前ページ
+          if(y<60||y>h-50) return;
+          const x=e.clientX;
+          if(x<60){ goNext(); return; }
+          if(x>VW-60){ goPrev(); return; }
           setOverlay(v=>!v); setMiniSeek(false);
         }}
         style={{position:"absolute",inset:0,overflow:"hidden",cursor:"pointer",
           opacity:overlay?0.16:1,transition:"opacity 0.22s"}}
       >
-        {[
-          {p: page > 0 ? page - 1 : null,                        offset:` 100% + ${dragPageX}px`},
-          {p: page,                                               offset:`${dragPageX}px`},
-          {p: page < pages.length - 1 ? page + 1 : null,         offset:`-100% + ${dragPageX}px`},
-        ].map(({p,offset},i)=>(
-          <div key={i} style={{
-            position:"absolute",inset:0,overflow:"hidden",
-            transform:`translateX(calc(${offset}))`,
-            transition:pageAnimating?"transform 0.25s ease":"none",
-          }}>
-            {p !== null && (
-              <div style={{
-                position:"absolute",
-                top:60,
-                left:PADDING,
-                width:(window.innerWidth - PADDING * 2)+"px",
-                height:(window.innerHeight - 120)+"px",
-                writingMode:"vertical-rl",textOrientation:"mixed",
-                overflow:"hidden",padding:0,
-                fontSize,lineHeight:LINE_HEIGHT_RATIO,letterSpacing:"0.06em",color:"#140800",
-                whiteSpace:"pre-wrap",
-              }} dangerouslySetInnerHTML={{__html:pages[p]}}/>
-            )}
-          </div>
-        ))}
+        {/* CSSカラム縦書きコンテナ
+            position:absolute; right:0 → 右端基準で content が左に伸びる
+            translateX(page * VW) → 右方向にずらして後のページを表示 */}
+        <div
+          ref={contentRef}
+          style={{
+            position:"absolute",
+            right:0,
+            top:0,
+            height:"calc(100vh - 80px)",
+            marginTop:40,
+            writingMode:"vertical-rl",
+            textOrientation:"mixed",
+            columnWidth:`${VW}px`,
+            columnGap:0,
+            fontSize,
+            lineHeight:1.8,
+            letterSpacing:"0.06em",
+            color:"#140800",
+            padding:"0 20px",
+            boxSizing:"border-box",
+            transform:`translateX(${page * VW}px)`,
+            transition:animating?"transform 0.28s ease":"none",
+            willChange:"transform",
+          }}
+          dangerouslySetInnerHTML={{__html: html || ""}}
+        />
       </div>
 
-      {/* ノンブル（タップでミニシークバー） */}
+      {/* ノンブル */}
       {!overlay&&(
-        <div
-          onClick={e=>{e.stopPropagation();setMiniSeek(v=>!v);}}
+        <div onClick={e=>{e.stopPropagation();setMiniSeek(v=>!v);}}
           style={{position:"absolute",bottom:10,left:0,right:0,textAlign:"center",
-            fontSize:10,color:"rgba(90,60,20,0.35)",letterSpacing:"0.15em",cursor:"pointer",zIndex:5}}
-        >
+            fontSize:10,color:"rgba(90,60,20,0.35)",letterSpacing:"0.15em",cursor:"pointer",zIndex:5}}>
           {page+1} / {totalPages}
         </div>
       )}
@@ -520,8 +426,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
       {miniSeek&&!overlay&&(
         <div onClick={e=>e.stopPropagation()}
           style={{position:"absolute",bottom:30,left:16,right:16,zIndex:12,
-            background:PB,border:`1px solid ${BC}`,padding:"12px 14px 10px",
-            boxShadow:"0 2px 16px rgba(0,0,0,0.1)"}}>
+            background:PB,border:`1px solid ${BC}`,padding:"12px 14px 10px",boxShadow:"0 2px 16px rgba(0,0,0,0.1)"}}>
           <Seekbar page={page} totalPages={totalPages} bookmarks={bookmarks} onSeek={p=>setPage(p)}/>
           <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:8.5,color:"rgba(80,50,20,0.38)"}}>
             <span>{totalPages}p（末）</span>
@@ -535,42 +440,31 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
         </div>
       )}
 
-      {/* オーバーレイ（設定パネル） */}
+      {/* オーバーレイ */}
       {overlay&&(
-        <div style={{position:"absolute",inset:0,zIndex:20,display:"flex",flexDirection:"column"}}
-          onClick={()=>setOverlay(false)}>
-          {/* 上部バー */}
+        <div style={{position:"absolute",inset:0,zIndex:20,display:"flex",flexDirection:"column"}} onClick={()=>setOverlay(false)}>
           <div onClick={e=>e.stopPropagation()}
-            style={{background:PB,borderBottom:`1px solid ${BC}`,padding:"10px 14px",
-              display:"flex",alignItems:"center",gap:10}}>
+            style={{background:PB,borderBottom:`1px solid ${BC}`,padding:"10px 14px",display:"flex",alignItems:"center",gap:10}}>
             <button onClick={onClose}
-              style={{background:"none",border:`1px solid #c0a880`,cursor:"pointer",padding:"5px 12px",
-                color:"#5a3a18",fontSize:11,letterSpacing:"0.08em",whiteSpace:"nowrap"}}>本を閉じる</button>
+              style={{background:"none",border:`1px solid #c0a880`,cursor:"pointer",padding:"5px 12px",color:"#5a3a18",fontSize:11,letterSpacing:"0.08em",whiteSpace:"nowrap"}}>本を閉じる</button>
             <div style={{flex:1,minWidth:0,padding:"0 4px"}}>
               <div style={{fontSize:15,fontWeight:700,color:"#1a0800",letterSpacing:"0.06em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{book.title}</div>
               <div style={{fontSize:11,color:"#7a6040",letterSpacing:"0.04em",marginTop:2}}>{book.author}</div>
             </div>
             <button onClick={()=>setAmazonModal(true)}
-              style={{background:"none",border:`1px solid #c0a880`,cursor:"pointer",padding:"7px 14px",
-                color:"#5a4030",fontSize:12,letterSpacing:"0.08em",whiteSpace:"nowrap"}}>紙の本を探す</button>
+              style={{background:"none",border:`1px solid #c0a880`,cursor:"pointer",padding:"7px 14px",color:"#5a4030",fontSize:12,letterSpacing:"0.08em",whiteSpace:"nowrap"}}>紙の本を探す</button>
           </div>
-          {/* 中央透過（タップで閉じる） */}
           <div style={{flex:1}}/>
-          {/* 下部設定 */}
           <div onClick={e=>e.stopPropagation()}
             style={{background:PB,borderTop:`1px solid ${BC}`,padding:"16px 16px 32px"}}>
-            {/* 文字サイズ + URLコピー */}
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
               <span style={{fontSize:10,color:"#9a8060",letterSpacing:"0.1em",minWidth:58}}>文字サイズ</span>
               <div style={{display:"flex",gap:4}}>
                 {FS.map(s=>(
                   <button key={s} onClick={()=>setFontSize(s)}
-                    style={{width:38,height:34,
-                      background:fontSize===s?"#2a1800":"transparent",
-                      color:fontSize===s?"#f7f2e8":"#5a4030",
-                      border:`1px solid #c0a880`,cursor:"pointer",
-                      fontSize:s*0.68,fontFamily:"'Noto Serif JP','Yu Mincho',serif",
-                      transition:"all 0.12s"}}>あ</button>
+                    style={{width:38,height:34,background:fontSize===s?"#2a1800":"transparent",
+                      color:fontSize===s?"#f7f2e8":"#5a4030",border:`1px solid #c0a880`,cursor:"pointer",
+                      fontSize:s*0.68,fontFamily:"'Noto Serif JP','Yu Mincho',serif",transition:"all 0.12s"}}>あ</button>
                 ))}
               </div>
               <div style={{flex:1}}/>
@@ -583,39 +477,33 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
                   color:copied?"#5a9040":"#7a6040",fontSize:10,letterSpacing:"0.05em",whiteSpace:"nowrap"}}>
                 {copied?"コピー済！":"URLをコピー"}</button>
             </div>
-            {/* 栞操作 */}
             <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:14,flexWrap:"wrap"}}>
               <span style={{fontSize:10,color:"#9a8060",letterSpacing:"0.1em",minWidth:58}}>栞</span>
               {bookmarks.map((bm,i)=>(
                 <button key={i} onClick={()=>jumpBm(bm.page)}
-                  style={{background:BM_COLORS[i],color:"#f7f2e8",border:"none",
-                    padding:"5px 11px",cursor:"pointer",fontSize:10,letterSpacing:"0.06em",borderRadius:2}}>
+                  style={{background:BM_COLORS[i],color:"#f7f2e8",border:"none",padding:"5px 11px",cursor:"pointer",fontSize:10,letterSpacing:"0.06em",borderRadius:2}}>
                   {i+1}: {bm.page+1}p
                 </button>
               ))}
               {bookmarks.length<MAX_BM&&!hasBmHere&&(
                 <button onClick={addBm}
-                  style={{background:"none",border:`1px solid #c0a880`,color:"#5a4030",
-                    padding:"5px 11px",cursor:"pointer",fontSize:10,letterSpacing:"0.06em"}}>
+                  style={{background:"none",border:`1px solid #c0a880`,color:"#5a4030",padding:"5px 11px",cursor:"pointer",fontSize:10,letterSpacing:"0.06em"}}>
                   ＋ 挟む
                 </button>
               )}
               {hasBmHere&&(
                 <button onClick={()=>removeBm(page)}
-                  style={{background:"none",border:`1px solid #c0a880`,color:"#8a5040",
-                    padding:"5px 11px",cursor:"pointer",fontSize:10,letterSpacing:"0.06em"}}>
+                  style={{background:"none",border:`1px solid #c0a880`,color:"#8a5040",padding:"5px 11px",cursor:"pointer",fontSize:10,letterSpacing:"0.06em"}}>
                   ✕ 外す
                 </button>
               )}
               {lastRead!==null&&(
                 <button onClick={returnLast}
-                  style={{background:"none",border:"1px dashed #b0906a",color:"#7a6050",
-                    padding:"5px 11px",cursor:"pointer",fontSize:10,letterSpacing:"0.06em"}}>
+                  style={{background:"none",border:"1px dashed #b0906a",color:"#7a6050",padding:"5px 11px",cursor:"pointer",fontSize:10,letterSpacing:"0.06em"}}>
                   ← 読んでいたページへ
                 </button>
               )}
             </div>
-            {/* シークバー */}
             <div>
               <div style={{fontSize:10,color:"#9a8060",marginBottom:4,letterSpacing:"0.1em"}}>{page+1} / {totalPages} ページ</div>
               <Seekbar page={page} totalPages={totalPages} bookmarks={bookmarks} onSeek={p=>setPage(p)}/>
