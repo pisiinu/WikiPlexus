@@ -42,8 +42,10 @@ export function processAozoraHtml(arrayBuffer) {
   html = html.replace(/<img[^>]*\/?>/gi, '');
   // 青空文庫注記 ［＃...］ を除去
   html = html.replace(/［＃[^］]*］/g, '');
-  // <rp>タグとその内容を除去（iOS Safariでrubyレイアウトが壊れる原因）
+  // <rp>タグ・内容および<rb>タグを除去
+  // → <ruby>Base<rt>Reading</rt></ruby> の最小構造にする
   html = html.replace(/<rp[^>]*>[^<]*<\/rp>/gi, '');
+  html = html.replace(/<\/?rb[^>]*>/gi, '');
 
   return html;
 }

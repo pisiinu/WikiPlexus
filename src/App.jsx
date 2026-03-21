@@ -431,7 +431,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
       <style>{`
         .bunko-scroll::-webkit-scrollbar{display:none}
         .bunko-scroll{-ms-overflow-style:none;scrollbar-width:none}
-        ruby{display:inline ruby;-webkit-ruby-position:before;ruby-position:over}
+        ruby{-webkit-ruby-position:before;ruby-position:over}
         rt{font-size:0.5em}
         rp{display:none}
       `}</style>
