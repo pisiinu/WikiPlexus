@@ -434,8 +434,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
         ruby{-webkit-ruby-position:before;ruby-position:over}
         rt{font-size:0.5em;line-height:1}
         .gaiji{font-family:'Noto Serif JP','HiraMinProN-W3','Hiragino Mincho ProN','Hiragino Mincho Pro',serif}
-        .sd{display:inline;position:relative}
-        .sd::after{content:"・";position:absolute;font-size:0.5em;right:-0.55em;top:0;line-height:1}
+        .sd{-webkit-text-emphasis:filled sesame;text-emphasis:filled sesame;-webkit-text-emphasis-position:right;text-emphasis-position:right}
         em.white_sesame_dot,em.白ゴマ傍点,strong.WHITE_SESAME_DOT{font-style:normal;font-weight:normal;-webkit-text-emphasis:open sesame;text-emphasis:open sesame}
         em.circle_dot,em.丸傍点,em.白丸傍点,strong.CIRCLE_DOT{font-style:normal;font-weight:normal;-webkit-text-emphasis:open circle;text-emphasis:open circle}
         em.black_circle_dot,em.黒丸傍点,strong.BLACK_CIRCLE_DOT{font-style:normal;font-weight:normal;-webkit-text-emphasis:filled circle;text-emphasis:filled circle}
