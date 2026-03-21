@@ -43,8 +43,15 @@ export function processAozoraHtml(arrayBuffer) {
   // <rp> を中身ごと除去（フォールバック括弧不要）
   html = html.replace(/<rp[^>]*>[^<]*<\/rp>/gi, '');
   html = html.replace(/<\/?rp[^>]*>/gi, '');
-  // <rb> タグを除去（中身は保持）→ HTML5 ruby: <ruby>base<rt>読み</rt></ruby>
+  // <rb> タグを除去（中身は保持）
   html = html.replace(/<\/?rb[^>]*>/gi, '');
+  // <ruby>BASE<rt>読み</rt></ruby> → <span class="rw">BASE<span class="rt">読み</span></span>
+  // iOS Safari は <ruby> 要素を CSS display 指定に関わらず特別扱いするため、
+  // <span> に変換してネイティブ ruby レンダリングを完全に回避する
+  html = html.replace(/<ruby>([\s\S]*?)<rt>([\s\S]*?)<\/rt><\/ruby>/gi,
+    (_, base, reading) => `<span class="rw">${base}<span class="rt">${reading}</span></span>`);
+  // 変換されなかった ruby/rt タグを除去（複数 rt 等のエッジケース）
+  html = html.replace(/<\/?(ruby|rt)\b[^>]*>/gi, '');
   // 傍点(sesame系): 1文字ずつ <span class="sd"> に分割
   // → CSS position:absolute の ::after でナカグロを付与（line-height に影響しない）
   html = html.replace(
