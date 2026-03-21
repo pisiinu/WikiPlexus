@@ -279,10 +279,11 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
   // HTML・フォントサイズ変更後にカラム数（総ページ数）を測定
   useLayoutEffect(()=>{
     if(!contentRef.current || !html) return;
+    const colW = window.innerWidth - 40;
     const raf = requestAnimationFrame(()=>{
       const el = contentRef.current;
       if(!el) return;
-      const total = Math.max(1, Math.round(el.offsetWidth / window.innerWidth));
+      const total = Math.max(1, Math.round(el.offsetWidth / colW));
       setTotalPages(total);
       setPage(p => Math.min(p, total - 1));
     });
@@ -356,6 +357,8 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
   const PB="rgba(248,243,234,0.97)";
   const BC="rgba(192,168,136,0.35)";
   const VW=window.innerWidth;
+  const MARGIN=20;
+  const COL_W=VW-MARGIN*2;
 
   return (
     <div style={{position:"fixed",inset:0,background:"linear-gradient(150deg,#f7f2e8 0%,#ece6d4 100%)",fontFamily:"'Noto Serif JP','Yu Mincho',serif",userSelect:"none"}}>
@@ -385,27 +388,26 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
           opacity:overlay?0.16:1,transition:"opacity 0.22s"}}
       >
         {/* CSSカラム縦書きコンテナ
-            position:absolute; right:0 → 右端基準で content が左に伸びる
-            translateX(page * VW) → 右方向にずらして後のページを表示 */}
+            position:absolute; right:MARGIN → 右マージン分だけ内側に配置
+            translateX(page * COL_W) → 右方向にずらして後のページを表示 */}
         <div
           ref={contentRef}
           style={{
             position:"absolute",
-            right:0,
+            right:MARGIN,
             top:0,
             height:"calc(100vh - 80px)",
             marginTop:40,
             writingMode:"vertical-rl",
             textOrientation:"mixed",
-            columnWidth:`${VW}px`,
+            columnWidth:`${COL_W}px`,
             columnGap:0,
+            columnFill:"auto",
             fontSize,
             lineHeight:1.8,
             letterSpacing:"0.06em",
             color:"#140800",
-            padding:"0 20px",
-            boxSizing:"border-box",
-            transform:`translateX(${page * VW}px)`,
+            transform:`translateX(${page * COL_W}px)`,
             transition:animating?"transform 0.28s ease":"none",
             willChange:"transform",
           }}
