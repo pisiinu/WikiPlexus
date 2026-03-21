@@ -39,7 +39,7 @@ export function processAozoraHtml(arrayBuffer) {
   // div タグを除去: 開始タグ → <br>（段落区切り）、終了タグ → 削除
   // div の margin/padding/height が縦書きで予期しない影響を与えるため
   html = html.replace(/<div[^>]*>/gi, '<br>');
-  html = html.replace(/<\/div>/gi, '');
+  html = html.replace(/<\/div>/gi, '<br>');
 
   // 外字 img → Unicode（rb内・外どちらも）。<span class="gaiji"> で包みフォントを明示
   // （iOSでNoto Serif JPにない文字のフォールバック切替がruby描画を壊す可能性への対策）
