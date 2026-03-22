@@ -56,7 +56,7 @@ export function processAozoraHtml(arrayBuffer) {
   // position:absolute の .rt で代替することで列幅への影響をゼロにする
   html = html.replace(
     /<ruby>((?:[^<]|<(?!\/?ruby\b)[^>]*>)*)<rt>([^<]*)<\/rt>\s*<\/ruby>/gi,
-    (_, base, reading) => `<span class="rw"><span class="rb">${base}</span><span class="rt">${reading}</span></span>`
+    (_, base, reading) => `<span class="rw"><span class="ra"><span class="rt">${reading}</span></span>${base}</span>`
   );
   // 変換されなかった ruby/rt タグを除去（念のため）
   html = html.replace(/<\/?(ruby|rt)\b[^>]*>/gi, '');

@@ -431,7 +431,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
       <style>{`
         .bunko-scroll::-webkit-scrollbar{display:none}
         .bunko-scroll{-ms-overflow-style:none;scrollbar-width:none}
-        .rw{display:inline-block;position:relative;line-height:inherit}
+        .ra{display:inline-block;position:relative;width:0;overflow:visible}
         .rt{position:absolute;writing-mode:vertical-rl;right:-1em;top:0;font-size:0.75em;line-height:1;white-space:nowrap}
         .gaiji{font-family:'Noto Serif JP','HiraMinProN-W3','Hiragino Mincho ProN','Hiragino Mincho Pro',serif}
         .sd{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Ccircle cx='5' cy='5' r='4.5' fill='%23140800'/%3E%3C/svg%3E");background-size:0.3em 0.3em;background-repeat:no-repeat;background-position:right center}
