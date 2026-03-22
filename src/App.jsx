@@ -454,7 +454,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     // 初回ロード時に lineHeight を確定（useLayoutEffect は html 変化では動かないため）
     if (containerRef.current) {
       const colWidth = containerRef.current.clientWidth || window.innerWidth;
-      const linesPerPage = Math.max(1, Math.floor(colWidth / (fontSize * 1.8)));
+      const linesPerPage = Math.max(1, Math.floor(colWidth / (fontSize * 2.0)));
       setLineHeight(colWidth / (linesPerPage * fontSize));
     }
     const chunks = splitChunks(html);
@@ -476,7 +476,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     // 端末幅 / (fontSize × 行高) が整数になるよう lineHeight を計算
     // → ページ境界が必ず行間に来るので文字の泣き別れを防ぐ
     const colWidth = containerRef.current.clientWidth || window.innerWidth;
-    const linesPerPage = Math.max(1, Math.floor(colWidth / (fontSize * 1.8)));
+    const linesPerPage = Math.max(1, Math.floor(colWidth / (fontSize * 2.0)));
     setLineHeight(colWidth / (linesPerPage * fontSize));
 
     if (!html) return;
@@ -690,12 +690,6 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
               boxSizing:"border-box",
               fontSize,
               lineHeight,
-              // CSS multi-column: column-width = lineHeight × fontSize
-              // → ページ境界が列境界に完全一致。rubyが列幅を広げても
-              //   column-width が固定されているためページ境界には影響しない
-              columnWidth: lineHeight ? `${(lineHeight * fontSize).toFixed(2)}px` : undefined,
-              columnGap: 0,
-              columnFill: "auto",
               letterSpacing:"0.06em",
               color:"#140800",
             }}
