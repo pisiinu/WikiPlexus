@@ -38,6 +38,18 @@ function writeCache(bookId, html) {
 }
 
 /**
+ * 書庫保存時に本文をバックグラウンドでキャッシュする
+ * 既にキャッシュ済みの場合は何もしない
+ */
+export async function precacheBook(bookId, url) {
+  if (readCache(bookId)) return;
+  try {
+    const html = await fetchAozoraHtml(url);
+    writeCache(bookId, html);
+  } catch {}
+}
+
+/**
  * 青空文庫 HTML フラグメントを取得するフック
  * @returns {{ html: string|null, loading: boolean, error: string|null }}
  */

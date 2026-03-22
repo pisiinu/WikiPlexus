@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react"; // useLayoutEffect: scroll restore
-import { useBookText } from "./hooks/useBookText.js";
+import { useBookText, precacheBook } from "./hooks/useBookText.js";
 import { useCatalog, searchCatalog } from "./hooks/useCatalog.js";
 
 const MAX_SHELF = 9;
@@ -698,7 +698,7 @@ export default function App() {
 
   const [fontSize,setFontSize] = useState(16);
   const [tab,setTab]           = useState("shelf");
-  const [shelf,setShelf]       = useState([POPULAR[0],POPULAR[1],POPULAR[3]]);
+  const [shelf,setShelf]       = useState([]);
   const [wantList,setWantList] = useState([]);
   const [reading,setReading]   = useState(null);
   const [query,setQuery]       = useState("");
@@ -789,6 +789,7 @@ export default function App() {
   function save(book){
     if(shelf.length>=MAX_SHELF||shelf.find(b=>b.id===book.id)) return;
     setLoading(book.id);
+    precacheBook(book.id, book.url); // バックグラウンドで本文をキャッシュ
     setTimeout(()=>{setShelf(p=>[...p,book]);setLoading(null);},650);
   }
   function removeFromShelf(id){ setShelf(prev=>prev.filter(b=>b.id!==id)); }
@@ -871,8 +872,16 @@ export default function App() {
               書庫　{shelf.length} 冊 ／ 最大 {MAX_SHELF} 冊
             </div>
             {shelf.length===0?(
-              <div style={{textAlign:"center",color:"#9a8060",fontSize:12,letterSpacing:"0.15em",marginTop:48,lineHeight:3}}>
-                書庫は空です<br/><span style={{fontSize:10,opacity:0.6}}>検索タブから本を保存できます</span>
+              <div style={{color:"#9a8060",marginTop:36,padding:"0 4px"}}>
+                <div style={{textAlign:"center",fontSize:13,letterSpacing:"0.2em",marginBottom:18,color:"#7a6040"}}>書庫は空です</div>
+                <div style={{background:"rgba(200,180,140,0.18)",borderRadius:4,padding:"16px 18px",border:"1px solid rgba(180,150,100,0.25)",fontSize:11.5,lineHeight:2.1,letterSpacing:"0.08em"}}>
+                  <div>右へスワイプするとランキングと</div>
+                  <div>検索があります</div>
+                  <div style={{marginTop:6}}>気に入った本の「書庫へ」を押すと</div>
+                  <div>最大 {MAX_SHELF} 冊まで保存できます</div>
+                  <div style={{marginTop:6,opacity:0.65,fontSize:11}}>保存と同時に本文もダウンロードされ</div>
+                  <div style={{opacity:0.65,fontSize:11}}>オフラインでも読めます</div>
+                </div>
               </div>
             ):(
               <>
