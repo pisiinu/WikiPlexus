@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { fetchAozoraHtml } from '../utils/aozoraParser.js';
 
-const CACHE_PREFIX    = 'bunko_html_v32_'; // HTML形式キャッシュ（v27: .ra=ゼロ幅inline-blockアンカーでベース文字レンダリングを保持しつつ含有ブロックを確保）
+const CACHE_PREFIX    = 'bunko_html_v33_'; // HTML形式キャッシュ（v27: .ra=ゼロ幅inline-blockアンカーでベース文字レンダリングを保持しつつ含有ブロックを確保）
 const MAX_CACHED_BOOKS = 30;
 
 // 旧バージョンのキャッシュをすべて削除
 (()=>{
   try {
     Object.keys(localStorage)
-      .filter(k => ['bunko_text_','bunko_html_v1_','bunko_html_v2_','bunko_html_v3_','bunko_html_v4_','bunko_html_v5_','bunko_html_v6_','bunko_html_v7_','bunko_html_v8_','bunko_html_v9_','bunko_html_v10_','bunko_html_v11_','bunko_html_v12_','bunko_html_v13_','bunko_html_v14_','bunko_html_v15_','bunko_html_v16_','bunko_html_v17_','bunko_html_v18_','bunko_html_v19_','bunko_html_v20_','bunko_html_v21_','bunko_html_v22_','bunko_html_v23_','bunko_html_v24_','bunko_html_v25_','bunko_html_v26_','bunko_html_v27_','bunko_html_v28_','bunko_html_v29_','bunko_html_v30_','bunko_html_v31_'].some(p => k.startsWith(p)))
+      .filter(k => ['bunko_text_','bunko_html_v1_','bunko_html_v2_','bunko_html_v3_','bunko_html_v4_','bunko_html_v5_','bunko_html_v6_','bunko_html_v7_','bunko_html_v8_','bunko_html_v9_','bunko_html_v10_','bunko_html_v11_','bunko_html_v12_','bunko_html_v13_','bunko_html_v14_','bunko_html_v15_','bunko_html_v16_','bunko_html_v17_','bunko_html_v18_','bunko_html_v19_','bunko_html_v20_','bunko_html_v21_','bunko_html_v22_','bunko_html_v23_','bunko_html_v24_','bunko_html_v25_','bunko_html_v26_','bunko_html_v27_','bunko_html_v28_','bunko_html_v29_','bunko_html_v30_','bunko_html_v31_','bunko_html_v32_'].some(p => k.startsWith(p)))
       .forEach(k => localStorage.removeItem(k));
   } catch {}
 })();

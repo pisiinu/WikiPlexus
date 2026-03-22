@@ -65,7 +65,7 @@ export function processAozoraHtml(arrayBuffer) {
   // display:inline のまま position:absolute の .rt の含有ブロックにする
   html = html.replace(
     /<ruby>((?:[^<]|<(?!\/?ruby\b)[^>]*>)*)<rt>([^<]*)<\/rt>\s*<\/ruby>/gi,
-    (_, base, reading) => `<span class="rw"><span class="rt">${reading}</span>${base}</span>`
+    (_, base, reading) => `<span class="rw"><span class="ra"><span class="rt">${reading}</span></span>${base}</span>`
   );
   html = html.replace(/<\/?(ruby|rt)\b[^>]*>/gi, '');
   // 傍点(sesame系): 1文字ずつ <span class="sd"> に分割
