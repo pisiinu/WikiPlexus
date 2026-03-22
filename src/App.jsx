@@ -454,7 +454,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     // 初回ロード時に lineHeight を確定（useLayoutEffect は html 変化では動かないため）
     if (containerRef.current) {
       const colWidth = containerRef.current.clientWidth || window.innerWidth;
-      const linesPerPage = Math.max(1, Math.floor(colWidth / (fontSize * 2.0)));
+      const linesPerPage = Math.max(6, Math.floor(colWidth / (fontSize * 3.3)));
       setLineHeight(colWidth / (linesPerPage * fontSize));
     }
     const chunks = splitChunks(html);
@@ -476,7 +476,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     // 端末幅 / (fontSize × 行高) が整数になるよう lineHeight を計算
     // → ページ境界が必ず行間に来るので文字の泣き別れを防ぐ
     const colWidth = containerRef.current.clientWidth || window.innerWidth;
-    const linesPerPage = Math.max(1, Math.floor(colWidth / (fontSize * 2.0)));
+    const linesPerPage = Math.max(6, Math.floor(colWidth / (fontSize * 3.3)));
     setLineHeight(colWidth / (linesPerPage * fontSize));
 
     if (!html) return;

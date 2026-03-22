@@ -49,6 +49,8 @@ export function processAozoraHtml(arrayBuffer) {
   // div の margin/padding/height が縦書きで予期しない影響を与えるため
   html = html.replace(/<div[^>]*>/gi, '<br>');
   html = html.replace(/<\/div>/gi, '<br>');
+  // 先頭の空白・<br> を除去（1ページ目右端の余白をなくす）
+  html = html.replace(/^(\s*<br\s*\/?>\s*)+/i, '');
 
   // 外字 img → Unicode（rb内・外どちらも）。<span class="gaiji"> で包みフォントを明示
   // （iOSでNoto Serif JPにない文字のフォールバック切替がruby描画を壊す可能性への対策）
