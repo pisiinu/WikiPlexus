@@ -313,6 +313,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
   const contentRef        = useRef(null); // 本文 div（直接 DOM 操作）
   const currentPageRef    = useRef(saved.currentPage ?? 0);
   const pageAnchorRef     = useRef(null); // フォントサイズ変更時の文字オフセットアンカー
+  const savedPageAnchorRef = useRef(null); // 通常読書中に最後に記録したアンカー（オーバーレイ外で更新）
   const chunksRef         = useRef([]);
   const renderedCountRef  = useRef(0);
   const touchRef          = useRef(null); // { startX, startY }
@@ -466,6 +467,17 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     return () => cancelAnimationFrame(raf);
   }, [fontSize]);
 
+  // オーバーレイを閉じた後 / ページが変わった後に読書位置アンカーを更新
+  // （オーバーレイ表示中は caretRangeFromPoint がオーバーレイに当たるため更新しない）
+  useEffect(() => {
+    if (overlay) return;
+    const raf = requestAnimationFrame(() => {
+      const anchor = capturePageAnchor();
+      if (anchor != null) savedPageAnchorRef.current = anchor;
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [currentPage, overlay]); // eslint-disable-line
+
   useEffect(() => { saveBookProgress(book.id, { bookmarks }); }, [bookmarks]);
   useEffect(() => {
     return () => { saveBookProgress(book.id, { currentPage: currentPageRef.current }); };
@@ -539,7 +551,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
 
   const FS = [13, 16, 19, 22];
 
-  // スクロールイベント：アニメーション中のページ更新 + レイジーロード
+  // スクロールイベント：アニメーション中のページ更新 + レイジーロード + 戻るマーカー自動消去
   function onScroll() {
     if (suppressScrollRef.current) return;
     const el = containerRef.current; if (!el) return;
@@ -548,15 +560,16 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     if (page !== currentPageRef.current) {
       currentPageRef.current = page;
       setCurrentPage(page);
+      // 「読んでいた場所」に到達したらマーカーを自動消去
+      setLastReadPage(prev => (prev !== null && page >= prev) ? null : prev);
     }
     checkLazyLoad(page);
   }
 
-  // seekbar ドラッグ → ページジャンプ
+  // seekbar ドラッグ → ページジャンプ（戻るマーカーは設定しない）
   function onSeek(r) {
     const needsRender = ensureAllChunks();
     if (needsRender) setTotalPages(computeTotalPages());
-    setLastReadPage(prev => prev ?? currentPageRef.current);
     requestAnimationFrame(() => {
       const tp = computeTotalPages();
       setTotalPages(tp);
@@ -614,7 +627,8 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
       return;
     }
     if (Math.abs(dx) > Math.abs(dy) * 0.6 && Math.abs(dx) > 30) {
-      if (dx < 0) goForward(); else goBack();
+      // 右スワイプ(dx>0)→先へ、左スワイプ(dx<0)→戻る（日本語縦書き右開き）
+      if (dx > 0) goForward(); else goBack();
     }
   }
 
@@ -681,8 +695,13 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
             ref={contentRef}
             style={{
               height:"100%",
-              padding:"56px 20px",
+              // block方向(物理左右)のpaddingをなくしてCSS columnsとページ幅を一致させる
+              // inline方向(物理上下)のみpadding: 56px top / 20px bottom
+              paddingTop:"56px",paddingBottom:"20px",
+              paddingLeft:0,paddingRight:0,
               boxSizing:"border-box",
+              // CSS columns で正確なページ境界を作る（文字が途切れない）
+              columnWidth:"100vw",columnGap:0,
               fontSize,lineHeight:1.8,letterSpacing:"0.06em",
               color:"#140800",
             }}
@@ -729,7 +748,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
               <span style={{fontSize:10,color:"#9a8060",letterSpacing:"0.1em",minWidth:58}}>文字サイズ</span>
               <div style={{display:"flex",gap:4}}>
                 {FS.map(s=>(
-                  <button key={s} onClick={()=>{ pageAnchorRef.current=capturePageAnchor(); setFontSize(s); }}
+                  <button key={s} onClick={()=>{ pageAnchorRef.current=savedPageAnchorRef.current; setFontSize(s); }}
                     style={{width:38,height:34,background:fontSize===s?"#2a1800":"transparent",
                       color:fontSize===s?"#f7f2e8":"#5a4030",border:`1px solid #c0a880`,cursor:"pointer",
                       fontSize:s*0.68,fontFamily:"'Noto Serif JP','Yu Mincho',serif",transition:"all 0.12s"}}>あ</button>
