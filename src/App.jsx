@@ -472,7 +472,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
           setOverlay(v=>!v);
         }}
         style={{
-          position:"absolute",top:0,left:0,right:0,bottom:52,
+          position:"absolute",top:0,left:0,right:0,bottom:104,
           overflowX:"scroll",overflowY:"hidden",
           direction:"rtl",
           opacity:overlay?0.16:1,transition:"opacity 0.22s",
@@ -496,7 +496,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
       {/* 下端 横シークバー＋進捗（常時表示）*/}
       {!overlay&&(
         <div style={{
-          position:"absolute",bottom:16,left:0,right:0,height:36,
+          position:"absolute",bottom:34,left:0,right:0,height:36,
           zIndex:6,display:"flex",alignItems:"center",
           paddingLeft:12,paddingRight:16,gap:10,
           pointerEvents:"none",
