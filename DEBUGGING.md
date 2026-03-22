@@ -104,6 +104,26 @@
 
 ## ファイル構成
 - `src/utils/aozoraParser.js` — Shift-JIS デコード・HTML 加工パイプライン
-- `src/hooks/useBookText.js` — fetch + LocalStorage キャッシュ（現在 v9_）
+- `src/hooks/useBookText.js` — fetch + IndexedDB キャッシュ
+- `src/workers/aozora.worker.js` — Web Worker で processAozoraHtml を実行
 - `src/App.jsx` — PageReader コンポーネント・CSS（縦書き・ruby・傍点）
 - `src/data/gaiji-table.js` — JIS X 0213 → Unicode マッピング
+
+## ページ送り実装（現在のアーキテクチャ）
+
+### 概要
+- `direction:rtl` + `overflow-x:scroll` + `writing-mode:vertical-rl` の既存スクロールコンテナをそのまま使用
+- `touchAction:"none"` でブラウザのネイティブスクロールを抑制、タッチは JS で全制御
+- `goToPage(n, animate)` で `scrollTo({left: -(n * pageWidth), behavior: 'smooth'})` によりページ単位で移動
+- `onScroll` イベントでスムーズスクロール中の `currentPage` 状態を更新 + レイジーロード
+
+### フォントサイズ変更時のページ位置保持
+1. フォントボタンタップ時: `capturePageAnchor()` で現在ページ右上の文字オフセットを `pageAnchorRef` に保存
+2. `useLayoutEffect([fontSize])` 発火 → `requestAnimationFrame` 内で:
+   - `ensureAllChunks()` で全コンテンツを展開
+   - `findPageForCharOffset(anchor)`: `container.scrollLeft = 0` に一時セットし `caretRangeFromPoint` で位置計算後 `goToPage(page)`
+3. `findPageForCharOffset` の座標計算: `Math.floor((containerRect.right - rect.right) / pageWidth)` で何ページ目かを算出
+
+### 進捗・栞
+- `currentPage / max(1, totalPages - 1)` が比率
+- 栞は `charOffset`（文字オフセット）を保存 → `findPageForCharOffset` でジャンプ先を決定
