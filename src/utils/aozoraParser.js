@@ -60,8 +60,13 @@ export function processAozoraHtml(arrayBuffer) {
   html = html.replace(/<\/?rp[^>]*>/gi, '');
   // <rb> タグを除去（中身は保持）
   html = html.replace(/<\/?rb[^>]*>/gi, '');
-  // <ruby>/<rt> はネイティブのまま残す（ブラウザ最適化 ruby レイアウトを使用）
-  // position:absolute による独自実装は iOS Safari の vertical-rl で極端に重くなるため廃止
+  // <ruby> → <span class="rw">、<rt> → <span class="rt"> に変換
+  // ネイティブ ruby は iOS Safari で列幅を lineHeight×fontSize より広くするため
+  // position:absolute の .rt で代替し、列幅計算から除外する
+  html = html.replace(/<ruby[^>]*>/gi, '<span class="rw">');
+  html = html.replace(/<\/ruby>/gi, '</span>');
+  html = html.replace(/<rt[^>]*>/gi, '<span class="rt">');
+  html = html.replace(/<\/rt>/gi, '</span>');
   // 傍点(sesame系): 1文字ずつ <span class="sd"> に分割
   // → CSS position:absolute の ::after でナカグロを付与（line-height に影響しない）
   html = html.replace(
