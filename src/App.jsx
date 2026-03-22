@@ -309,15 +309,19 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
   const [amazonModal, setAmazonModal] = useState(false);
   const [copied, setCopied]           = useState(false);
 
-  const containerRef      = useRef(null);
-  const contentRef        = useRef(null); // 本文 div（直接 DOM 操作）
-  const currentPageRef    = useRef(saved.currentPage ?? 0);
-  const pageAnchorRef     = useRef(null); // フォントサイズ変更時の文字オフセットアンカー
-  const savedPageAnchorRef = useRef(null); // 通常読書中に最後に記録したアンカー（オーバーレイ外で更新）
-  const chunksRef         = useRef([]);
-  const renderedCountRef  = useRef(0);
-  const touchRef          = useRef(null); // { startX, startY }
-  const suppressScrollRef = useRef(false);
+  const [lineHeight, setLineHeight] = useState(1.8); // 端末幅に合わせて動的計算
+
+  const containerRef        = useRef(null);
+  const contentRef          = useRef(null); // 本文 div（直接 DOM 操作）
+  const currentPageRef      = useRef(saved.currentPage ?? 0);
+  const pageAnchorRef       = useRef(null); // フォントサイズ変更時の文字オフセットアンカー
+  const savedPageAnchorRef  = useRef(null); // 通常読書中に最後に記録したアンカー（オーバーレイ外で更新）
+  const chunksRef           = useRef([]);
+  const renderedCountRef    = useRef(0);
+  const touchRef            = useRef(null); // { startX, startY }
+  const suppressScrollRef   = useRef(false);
+  const suppressAutoClearRef = useRef(false); // 大ジャンプ中は lastReadPage 自動消去を抑制
+  const autoClearTimerRef   = useRef(null);
 
   function getPageWidth() {
     return containerRef.current?.clientWidth ?? window.innerWidth;
@@ -426,6 +430,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     const tp = computeTotalPages();
     setTotalPages(tp);
     const page = Math.max(0, Math.min(n, tp - 1));
+    const isLargeJump = Math.abs(page - currentPageRef.current) > 2;
     const targetLeft = -(page * getPageWidth());
     if (animate) {
       el.scrollTo({ left: targetLeft, behavior: 'smooth' });
@@ -434,28 +439,50 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     }
     currentPageRef.current = page;
     setCurrentPage(page);
+    // 大ジャンプ（栞・seekbar）中は lastReadPage 自動消去を抑制
+    if (isLargeJump) {
+      suppressAutoClearRef.current = true;
+      if (autoClearTimerRef.current) clearTimeout(autoClearTimerRef.current);
+      autoClearTimerRef.current = setTimeout(() => {
+        suppressAutoClearRef.current = false;
+      }, 600);
+    }
   }
 
-  // html 読み込み後：チャンク分割 → 初回描画 → ページ位置復元
+  // html 読み込み後：行高確定 → チャンク分割 → 初回描画 → ページ位置復元
   useEffect(() => {
     if (!html || !contentRef.current || html.length > TOO_LARGE_HTML) return;
+    // 初回ロード時に lineHeight を確定（useLayoutEffect は html 変化では動かないため）
+    if (containerRef.current) {
+      const colWidth = containerRef.current.clientWidth || window.innerWidth;
+      const linesPerPage = Math.max(1, Math.floor(colWidth / (fontSize * 1.8)));
+      setLineHeight(colWidth / (linesPerPage * fontSize));
+    }
     const chunks = splitChunks(html);
     chunksRef.current = chunks;
     renderedCountRef.current = Math.min(INIT_CHUNKS, chunks.length);
     contentRef.current.innerHTML = chunks.slice(0, renderedCountRef.current).join('');
-    requestAnimationFrame(() => {
+    // lineHeight state 更新後のレイアウトで計算するため 2フレーム待つ
+    requestAnimationFrame(() => requestAnimationFrame(() => {
       const tp = computeTotalPages();
       setTotalPages(tp);
       const savedPage = Math.min(saved.currentPage ?? 0, tp - 1);
       goToPage(savedPage);
-    });
-  }, [html]);
+    }));
+  }, [html]); // eslint-disable-line
 
-  // フォントサイズ変更後：charOffset アンカーで現在ページを復元
+  // フォントサイズ変更後：行高を端末幅で割り切れる値に調整 + charOffset アンカーでページ復元
   useLayoutEffect(() => {
-    if (!html || !containerRef.current) return;
+    if (!containerRef.current) return;
+    // 端末幅 / (fontSize × 行高) が整数になるよう lineHeight を計算
+    // → ページ境界が必ず行間に来るので文字の泣き別れを防ぐ
+    const colWidth = containerRef.current.clientWidth || window.innerWidth;
+    const linesPerPage = Math.max(1, Math.floor(colWidth / (fontSize * 1.8)));
+    setLineHeight(colWidth / (linesPerPage * fontSize));
+
+    if (!html) return;
     const anchor = pageAnchorRef.current;
-    if (anchor == null) return; // null/undefined: フォント変更ではない（初回描画は html effect が担当）
+    if (anchor == null) return;
     const raf = requestAnimationFrame(() => {
       pageAnchorRef.current = null;
       ensureAllChunks();
@@ -465,7 +492,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
       goToPage(page);
     });
     return () => cancelAnimationFrame(raf);
-  }, [fontSize]);
+  }, [fontSize]); // eslint-disable-line
 
   // オーバーレイを閉じた後 / ページが変わった後に読書位置アンカーを更新
   // （オーバーレイ表示中は caretRangeFromPoint がオーバーレイに当たるため更新しない）
@@ -561,7 +588,10 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
       currentPageRef.current = page;
       setCurrentPage(page);
       // 「読んでいた場所」に到達したらマーカーを自動消去
-      setLastReadPage(prev => (prev !== null && page >= prev) ? null : prev);
+      // 大ジャンプ中（栞・seekbar）は suppressAutoClearRef で抑制
+      if (!suppressAutoClearRef.current) {
+        setLastReadPage(prev => (prev !== null && page >= prev) ? null : prev);
+      }
     }
     checkLazyLoad(page);
   }
@@ -652,7 +682,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
       <style>{`
         .bunko-scroll::-webkit-scrollbar{display:none}
         .bunko-scroll{-ms-overflow-style:none;scrollbar-width:none}
-        ruby{ruby-position:over}
+        ruby{ruby-position:over;break-inside:avoid;-webkit-column-break-inside:avoid}
         rt{font-size:0.5em;line-height:1}
         .gaiji{font-family:'Noto Serif JP','HiraMinProN-W3','Hiragino Mincho ProN','Hiragino Mincho Pro',serif}
         .sd{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Ccircle cx='5' cy='5' r='4.5' fill='%23140800'/%3E%3C/svg%3E");background-size:0.3em 0.3em;background-repeat:no-repeat;background-position:right center}
@@ -695,14 +725,13 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
             ref={contentRef}
             style={{
               height:"100%",
-              // block方向(物理左右)のpaddingをなくしてCSS columnsとページ幅を一致させる
-              // inline方向(物理上下)のみpadding: 56px top / 20px bottom
-              paddingTop:"56px",paddingBottom:"20px",
-              paddingLeft:0,paddingRight:0,
+              padding:"56px 20px 20px",
               boxSizing:"border-box",
-              // CSS columns で正確なページ境界を作る（文字が途切れない）
-              columnWidth:"100vw",columnGap:0,
-              fontSize,lineHeight:1.8,letterSpacing:"0.06em",
+              fontSize,
+              // 端末幅が lineHeight×fontSize の整数倍になるよう動的計算
+              // → ページ境界が常に行間に来て文字・ルビの泣き別れを防ぐ
+              lineHeight,
+              letterSpacing:"0.06em",
               color:"#140800",
             }}
           />
