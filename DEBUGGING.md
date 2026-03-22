@@ -2,7 +2,7 @@
 
 ## 未解決の不具合
 
-### 1. 外字（gaiji）の後のルビが表示されない
+### 1. 外字（gaiji）の後のルビが表示されない（→ v26 で構造ごと廃止）
 **症状**: 山月記など、外字画像を含む作品で、最初の外字が出現した箇所以降のルビが表示されなくなる。外字自体のルビは（あれば）表示される場合もある。
 
 **確認環境**: iOS Safari（主）
@@ -46,7 +46,23 @@
 
 ---
 
-### 2. 傍点の行間が他より広い
+### 2. ルビのある行の列幅が広い（iOS Safari）→ v26 で修正試行
+
+**症状**: ルビのある文字の「行」（縦書きなので列）が他より幅広になる。PCのChromeでは正常。
+
+**原因**: iOS Safari はネイティブ `<ruby>` 要素の列幅を独自に計算し、`line-height:1` を指定しても無効。
+
+**v25までの試み**: `ruby{line-height:1}`, `ruby>span{line-height:1}`, `rt{line-height:1}` → 効果なし
+
+**v26 対応**:
+- `<ruby>...<rt>...</rt></ruby>` を `<span class="rw"><span class="rb">...</span><span class="rt">...</span></span>` に変換（parser側）
+- CSS: `.rw{display:inline;position:relative}`, `.rt{position:absolute;writing-mode:vertical-rl;right:-1em;top:0;font-size:0.75em;line-height:1;white-space:nowrap}`
+- `position:absolute` のため `.rt` は列幅計算に寄与しない → 列幅が均一になるはず
+- v12で同様の試みが失敗した理由: overflow+writing-mode が同一要素にあり含有ブロックがscrollコンテナになった → v13+の direction:rtl 分離で解消済み
+
+---
+
+### 3. 傍点の行間が他より広い
 **症状**: 傍点（SESAME_DOT）のある行が他の行より行間が広くなる。
 
 **原因**: `text-emphasis` プロパティが行ボックスに傍点用のスペースを確保するため行高が増加する。
