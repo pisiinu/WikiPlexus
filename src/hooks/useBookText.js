@@ -13,7 +13,7 @@ import { fetchAozoraHtml } from '../utils/aozoraParser.js';
 
 // ─── IndexedDB キャッシュ ───
 const DB_NAME = 'bunko';
-const DB_VER  = 3; // v3: ruby → .rw/.rt spans (native ruby が iOS Safari で列幅を広げる問題を修正)
+const DB_VER  = 4; // v4: native ruby に戻す（CSS multi-column で列幅を固定し ruby overflow を許容）
 const STORE   = 'html';
 const MAX_CACHED_BOOKS = 30;
 

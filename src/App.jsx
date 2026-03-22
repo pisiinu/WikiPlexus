@@ -278,8 +278,7 @@ function saveBookProgress(bookId, data) {
 
 /* ─── HTML を <br> 区切りで分割（長編のレイジーレンダリング用） ─── */
 const CHUNK_SIZE     = 20000; // chars
-const INIT_CHUNKS    = 2;     // 初回描画チャンク数
-const TOO_LARGE_HTML = 400000; // この文字数を超えたら「大きすぎる」とみなす
+const INIT_CHUNKS    = 2;     // 初回描画チャンク数（レイジーロードで増加）
 
 function splitChunks(html) {
   const chunks = [];
@@ -451,7 +450,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
 
   // html 読み込み後：行高確定 → チャンク分割 → 初回描画 → ページ位置復元
   useEffect(() => {
-    if (!html || !contentRef.current || html.length > TOO_LARGE_HTML) return;
+    if (!html || !contentRef.current) return;
     // 初回ロード時に lineHeight を確定（useLayoutEffect は html 変化では動かないため）
     if (containerRef.current) {
       const colWidth = containerRef.current.clientWidth || window.innerWidth;
@@ -523,45 +522,6 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     </div>
   );
 
-  if(html && html.length > TOO_LARGE_HTML) {
-    const aozoraUrl = book.url.replace(
-      'https://raw.githubusercontent.com/aozorabunko/aozorabunko/master/',
-      'https://www.aozora.gr.jp/'
-    );
-    const amazonUrl = `https://www.amazon.co.jp/s?k=${encodeURIComponent(book.author+' '+book.title)}&tag=hana0f-22`;
-    return (
-      <div style={{position:"fixed",inset:0,background:"linear-gradient(150deg,#f7f2e8 0%,#ece6d4 100%)",
-        display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-        fontFamily:"'Noto Serif JP','Yu Mincho',serif",gap:0,padding:32,textAlign:"center"}}>
-        <div style={{fontSize:13,color:"#5a3a18",letterSpacing:"0.15em",marginBottom:6}}>{book.title}</div>
-        <div style={{fontSize:10,color:"#9a7050",letterSpacing:"0.08em",marginBottom:28}}>{book.author}</div>
-        <div style={{fontSize:12,color:"#7a5a30",letterSpacing:"0.08em",lineHeight:2,marginBottom:24}}>
-          申し訳ありません。<br/>
-          この作品はアプリで表示できる<br/>
-          サイズの限界を超えています。
-        </div>
-        <div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:240}}>
-          <a href={aozoraUrl} target="_blank" rel="noopener noreferrer"
-            style={{display:"block",background:"none",border:"1.5px solid #a08050",
-              color:"#3a2010",padding:"10px 0",fontSize:12,letterSpacing:"0.08em",
-              textDecoration:"none",fontWeight:600}}>
-            青空文庫で読む（横書き）
-          </a>
-          <a href={amazonUrl} target="_blank" rel="noopener noreferrer"
-            style={{display:"block",background:"none",border:"1px solid #c0a880",
-              color:"#7a5a30",padding:"10px 0",fontSize:12,letterSpacing:"0.08em",
-              textDecoration:"none"}}>
-            紙の本を探す
-          </a>
-        </div>
-        <button onClick={onClose}
-          style={{marginTop:28,background:"none",border:"none",color:"#9a8060",
-            fontSize:11,letterSpacing:"0.1em",cursor:"pointer",textDecoration:"underline"}}>
-          戻る
-        </button>
-      </div>
-    );
-  }
 
   if(textError) return (
     <div style={{position:"fixed",inset:0,background:"linear-gradient(150deg,#f7f2e8 0%,#ece6d4 100%)",
@@ -682,8 +642,8 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
       <style>{`
         .bunko-scroll::-webkit-scrollbar{display:none}
         .bunko-scroll{-ms-overflow-style:none;scrollbar-width:none}
-        .rw{display:inline-block;position:relative}
-        .rt{position:absolute;top:0;right:-1em;font-size:0.5em;writing-mode:vertical-rl;line-height:1;white-space:nowrap}
+        ruby{ruby-position:over;break-inside:avoid;-webkit-column-break-inside:avoid}
+        rt{font-size:0.5em;line-height:1}
         .gaiji{font-family:'Noto Serif JP','HiraMinProN-W3','Hiragino Mincho ProN','Hiragino Mincho Pro',serif}
         .sd{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Ccircle cx='5' cy='5' r='4.5' fill='%23140800'/%3E%3C/svg%3E");background-size:0.3em 0.3em;background-repeat:no-repeat;background-position:right center}
         blockquote,pre{font-size:inherit;font-family:inherit}
@@ -725,14 +685,17 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
             ref={contentRef}
             style={{
               height:"100%",
-              // block方向(物理左右)はpaddingを0にする
-              // → lineHeight×fontSize×linesPerPage = containerWidth が成立し、
-              //   ページ境界と行間が一致して文字の泣き別れが起きない
               paddingTop:"56px", paddingBottom:"20px",
               paddingLeft:0, paddingRight:0,
               boxSizing:"border-box",
               fontSize,
               lineHeight,
+              // CSS multi-column: column-width = lineHeight × fontSize
+              // → ページ境界が列境界に完全一致。rubyが列幅を広げても
+              //   column-width が固定されているためページ境界には影響しない
+              columnWidth: lineHeight ? `${(lineHeight * fontSize).toFixed(2)}px` : undefined,
+              columnGap: 0,
+              columnFill: "auto",
               letterSpacing:"0.06em",
               color:"#140800",
             }}
@@ -1107,7 +1070,6 @@ export default function App() {
           <div style={{minWidth:"100%",boxSizing:"border-box",padding:"18px 20px 56px"}}>
             <div style={{borderBottom:"1px solid #d0b898",paddingBottom:7,marginBottom:18}}>
               <span style={{fontSize:13,letterSpacing:"0.2em",color:"#9a8060"}}>書庫　{shelf.length} 冊</span>
-              <div style={{fontSize:9,color:"#b09878",letterSpacing:"0.06em",marginTop:4,opacity:0.8}}>※ 大長編小説には対応していません</div>
             </div>
             {shelf.length===0?(
               <div style={{color:"#9a8060",marginTop:36,padding:"0 4px"}}>
