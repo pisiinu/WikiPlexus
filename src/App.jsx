@@ -321,9 +321,10 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
   const suppressScrollRef   = useRef(false);
   const suppressAutoClearRef = useRef(false); // 大ジャンプ中は lastReadPage 自動消去を抑制
   const autoClearTimerRef   = useRef(null);
+  const measuredPageWidthRef = useRef(null); // 実測ページ幅（ruby列幅込み）
 
   function getPageWidth() {
-    return containerRef.current?.clientWidth ?? window.innerWidth;
+    return measuredPageWidthRef.current ?? (containerRef.current?.clientWidth ?? window.innerWidth);
   }
 
   function computeTotalPages() {
@@ -393,6 +394,55 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     return page;
   }
 
+  // 実際にレンダリングされた列幅を計測し、ページ幅を返す
+  // ruby列はfont-size×line-heightより幅広になるため、実測値でズレを補正する
+  function measurePageWidth() {
+    const content = contentRef.current;
+    const container = containerRef.current;
+    if (!content || !container) return null;
+    const colWidth = container.clientWidth || window.innerWidth;
+    const linesPerPage = Math.max(6, Math.floor(colWidth / (fontSize * 1.8)));
+    const saved = container.scrollLeft;
+    suppressScrollRef.current = true;
+    container.scrollLeft = 0;
+    const cRect = container.getBoundingClientRect();
+    let colCount = 0;
+    let lastColRight = null;
+    let measured = null;
+    const isInRt = (node) => {
+      let p = node.parentElement;
+      while (p && p !== content) { if (p.tagName === 'RT') return true; p = p.parentElement; }
+      return false;
+    };
+    const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+    let node;
+    outer: while ((node = walker.nextNode())) {
+      if (isInRt(node)) continue;
+      const txt = node.textContent;
+      for (let i = 0; i < txt.length; i++) {
+        if (!txt[i].trim()) continue;
+        try {
+          const r = document.createRange();
+          r.setStart(node, i); r.setEnd(node, i + 1);
+          const rect = r.getBoundingClientRect();
+          if (!rect.width) continue;
+          if (lastColRight === null || rect.right < lastColRight - 2) {
+            colCount++;
+            lastColRight = rect.right;
+            if (colCount > linesPerPage) {
+              measured = cRect.right - rect.right;
+              break outer;
+            }
+          }
+        } catch {}
+        break; // 各テキストノードの先頭1文字のみ確認（高速化）
+      }
+    }
+    container.scrollLeft = saved;
+    suppressScrollRef.current = false;
+    return measured;
+  }
+
   // レイジーロード：ページnが描画済み範囲の末尾3ページ以内なら追加描画
   function checkLazyLoad(page) {
     const chunks = chunksRef.current;
@@ -454,7 +504,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     // 初回ロード時に lineHeight を確定（useLayoutEffect は html 変化では動かないため）
     if (containerRef.current) {
       const colWidth = containerRef.current.clientWidth || window.innerWidth;
-      const linesPerPage = Math.max(6, Math.floor(colWidth / (fontSize * 3.3)));
+      const linesPerPage = Math.max(6, Math.floor(colWidth / (fontSize * 1.8)));
       setLineHeight(colWidth / (linesPerPage * fontSize));
     }
     const chunks = splitChunks(html);
@@ -463,6 +513,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     contentRef.current.innerHTML = chunks.slice(0, renderedCountRef.current).join('');
     // lineHeight state 更新後のレイアウトで計算するため 2フレーム待つ
     requestAnimationFrame(() => requestAnimationFrame(() => {
+      measuredPageWidthRef.current = measurePageWidth(); // 実測ページ幅（ruby含む）
       const tp = computeTotalPages();
       setTotalPages(tp);
       const savedPage = Math.min(saved.currentPage ?? 0, tp - 1);
@@ -476,7 +527,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     // 端末幅 / (fontSize × 行高) が整数になるよう lineHeight を計算
     // → ページ境界が必ず行間に来るので文字の泣き別れを防ぐ
     const colWidth = containerRef.current.clientWidth || window.innerWidth;
-    const linesPerPage = Math.max(6, Math.floor(colWidth / (fontSize * 3.3)));
+    const linesPerPage = Math.max(6, Math.floor(colWidth / (fontSize * 1.8)));
     setLineHeight(colWidth / (linesPerPage * fontSize));
 
     if (!html) return;
@@ -485,6 +536,7 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     const raf = requestAnimationFrame(() => {
       pageAnchorRef.current = null;
       ensureAllChunks();
+      measuredPageWidthRef.current = measurePageWidth(); // フォントサイズ変更後に再実測
       const tp = computeTotalPages();
       setTotalPages(tp);
       const page = findPageForCharOffset(anchor);
