@@ -62,9 +62,11 @@ export function processAozoraHtml(arrayBuffer) {
   html = html.replace(/<\/?rp[^>]*>/gi, '');
   // <rb> タグを除去（中身は保持）
   html = html.replace(/<\/?rb[^>]*>/gi, '');
-  // <ruby>/<rt> はネイティブのまま残す
-  // 列幅は CSS multi-column の column-width で固定するため、ruby が列幅を広げても
-  // 列境界（ページ境界）には影響しない（ルビが隣の列にはみ出すだけ）
+  // <ruby>/<rt> → .rw/.rt span に変換（position:absolute でルビを配置し列幅を広げない）
+  // iOS Safari のネイティブ ruby は列幅を膨張させページ境界がズレる原因になるため置き換える
+  html = html.replace(/<rt([^>]*)>([\s\S]*?)<\/rt>/gi, '<span class="rt">$2</span>');
+  html = html.replace(/<\/ruby>/gi, '</span>');
+  html = html.replace(/<ruby[^>]*>/gi, '<span class="rw">');
   // 傍点(sesame系): 1文字ずつ <span class="sd"> に分割
   // → CSS position:absolute の ::after でナカグロを付与（line-height に影響しない）
   html = html.replace(

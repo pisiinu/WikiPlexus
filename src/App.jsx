@@ -321,10 +321,8 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
   const suppressScrollRef   = useRef(false);
   const suppressAutoClearRef = useRef(false); // 大ジャンプ中は lastReadPage 自動消去を抑制
   const autoClearTimerRef   = useRef(null);
-  const measuredPageWidthRef = useRef(null); // 実測ページ幅（ruby列幅込み）
-
   function getPageWidth() {
-    return measuredPageWidthRef.current ?? (containerRef.current?.clientWidth ?? window.innerWidth);
+    return containerRef.current?.clientWidth ?? window.innerWidth;
   }
 
   function computeTotalPages() {
@@ -392,55 +390,6 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     container.scrollLeft = savedScrollLeft;
     suppressScrollRef.current = false;
     return page;
-  }
-
-  // 実際にレンダリングされた列幅を計測し、ページ幅を返す
-  // ruby列はfont-size×line-heightより幅広になるため、実測値でズレを補正する
-  function measurePageWidth() {
-    const content = contentRef.current;
-    const container = containerRef.current;
-    if (!content || !container) return null;
-    const colWidth = container.clientWidth || window.innerWidth;
-    const linesPerPage = Math.max(6, Math.floor(colWidth / (fontSize * 1.8)));
-    const saved = container.scrollLeft;
-    suppressScrollRef.current = true;
-    container.scrollLeft = 0;
-    const cRect = container.getBoundingClientRect();
-    let colCount = 0;
-    let lastColRight = null;
-    let measured = null;
-    const isInRt = (node) => {
-      let p = node.parentElement;
-      while (p && p !== content) { if (p.tagName === 'RT') return true; p = p.parentElement; }
-      return false;
-    };
-    const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
-    let node;
-    outer: while ((node = walker.nextNode())) {
-      if (isInRt(node)) continue;
-      const txt = node.textContent;
-      for (let i = 0; i < txt.length; i++) {
-        if (!txt[i].trim()) continue;
-        try {
-          const r = document.createRange();
-          r.setStart(node, i); r.setEnd(node, i + 1);
-          const rect = r.getBoundingClientRect();
-          if (!rect.width) continue;
-          if (lastColRight === null || rect.right < lastColRight - 2) {
-            colCount++;
-            lastColRight = rect.right;
-            if (colCount > linesPerPage) {
-              measured = cRect.right - rect.right;
-              break outer;
-            }
-          }
-        } catch {}
-        break; // 各テキストノードの先頭1文字のみ確認（高速化）
-      }
-    }
-    container.scrollLeft = saved;
-    suppressScrollRef.current = false;
-    return measured;
   }
 
   // レイジーロード：ページnが描画済み範囲の末尾3ページ以内なら追加描画
@@ -513,7 +462,6 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     contentRef.current.innerHTML = chunks.slice(0, renderedCountRef.current).join('');
     // lineHeight state 更新後のレイアウトで計算するため 2フレーム待つ
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      measuredPageWidthRef.current = measurePageWidth(); // 実測ページ幅（ruby含む）
       const tp = computeTotalPages();
       setTotalPages(tp);
       const savedPage = Math.min(saved.currentPage ?? 0, tp - 1);
@@ -536,7 +484,6 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
     const raf = requestAnimationFrame(() => {
       pageAnchorRef.current = null;
       ensureAllChunks();
-      measuredPageWidthRef.current = measurePageWidth(); // フォントサイズ変更後に再実測
       const tp = computeTotalPages();
       setTotalPages(tp);
       const page = findPageForCharOffset(anchor);
@@ -694,8 +641,8 @@ function PageReader({ book, onClose, fontSize, setFontSize }) {
       <style>{`
         .bunko-scroll::-webkit-scrollbar{display:none}
         .bunko-scroll{-ms-overflow-style:none;scrollbar-width:none}
-        ruby{ruby-position:over;break-inside:avoid;-webkit-column-break-inside:avoid}
-        rt{font-size:0.5em;line-height:1}
+        .rw{display:inline-block;position:relative;vertical-align:top}
+        .rt{position:absolute;top:0;right:-0.55em;font-size:0.5em;writing-mode:vertical-rl;line-height:1;white-space:nowrap;pointer-events:none}
         .gaiji{font-family:'Noto Serif JP','HiraMinProN-W3','Hiragino Mincho ProN','Hiragino Mincho Pro',serif}
         .sd{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Ccircle cx='5' cy='5' r='4.5' fill='%23140800'/%3E%3C/svg%3E");background-size:0.3em 0.3em;background-repeat:no-repeat;background-position:right center}
         blockquote,pre{font-size:inherit;font-family:inherit}
